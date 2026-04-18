@@ -16,7 +16,7 @@ export default function TouchControls() {
     setCameraAngle,
     cameraAngle,
     currentInteraction,
-    setShowMissionDialog,
+    triggerAction,
     coins,
     xp,
     level,
@@ -129,9 +129,9 @@ export default function TouchControls() {
 
   const handleAction = useCallback(() => {
     if (currentInteraction) {
-      setShowMissionDialog(true);
+      triggerAction();
     }
-  }, [currentInteraction, setShowMissionDialog]);
+  }, [currentInteraction, triggerAction]);
 
   const actionEnabled = !!currentInteraction;
 

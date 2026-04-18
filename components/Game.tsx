@@ -11,6 +11,7 @@ import { Sky } from './world/Sky';
 import Doctor from './player/Doctor';
 import CameraFollow from './player/CameraFollow';
 import TouchControls from './player/TouchControls';
+import GameFlow from './GameFlow';
 import Baby from './npcs/Baby';
 import Parent from './npcs/Parent';
 
@@ -52,6 +53,9 @@ export default function Game() {
     <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden', touchAction: 'none' }}>
       {/* Touch controls overlay (joystick + action button + HUD) */}
       <TouchControls />
+
+      {/* Game flow overlay (missions, dialogs, mini-games) */}
+      <GameFlow />
 
       <Suspense fallback={<LoadingScreen />}>
         <KeyboardControls map={KEY_MAP}>

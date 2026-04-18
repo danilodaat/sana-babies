@@ -21,6 +21,11 @@ interface GameState {
   showMissionDialog: boolean;
   currentMission: Mission | null;
 
+  // GameFlow state
+  activeMiniGame: string | null;
+  dialogMode: 'offer' | 'complete' | 'chat' | null;
+  actionTriggered: number; // increments on each action press
+
   // Missions
   missions: Mission[];
   completedMissions: string[];
@@ -45,6 +50,9 @@ interface GameState {
   addCoins: (amount: number) => void;
   addXP: (amount: number) => void;
   addMission: (mission: Mission) => void;
+  setActiveMiniGame: (game: string | null) => void;
+  setDialogMode: (mode: 'offer' | 'complete' | 'chat' | null) => void;
+  triggerAction: () => void;
 }
 
 function calculateLevel(xp: number): number {
@@ -67,6 +75,10 @@ export const useGameStore = create<GameState>((set) => ({
   currentInteraction: null,
   showMissionDialog: false,
   currentMission: null,
+
+  activeMiniGame: null,
+  dialogMode: null,
+  actionTriggered: 0,
 
   missions: [],
   completedMissions: [],
@@ -116,4 +128,11 @@ export const useGameStore = create<GameState>((set) => ({
 
   addMission: (mission) =>
     set((state) => ({ missions: [...state.missions, mission] })),
+
+  setActiveMiniGame: (game) => set({ activeMiniGame: game }),
+
+  setDialogMode: (mode) => set({ dialogMode: mode }),
+
+  triggerAction: () =>
+    set((state) => ({ actionTriggered: state.actionTriggered + 1 })),
 }));
