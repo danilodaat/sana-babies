@@ -60,6 +60,12 @@ export default function Game() {
             style={{ width: '100%', height: '100%', touchAction: 'none' }}
             camera={{ fov: 60, near: 0.1, far: 500, position: [0, 6, 8] }}
             gl={{ antialias: true, powerPreference: 'high-performance' }}
+            events={(store) => ({
+              ...store,
+              priority: 0,
+              enabled: true,
+              connected: undefined,
+            })}
           >
             {/* Lighting */}
             <ambientLight intensity={0.7} color="#FFF8E7" />
