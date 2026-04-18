@@ -6,11 +6,15 @@ import { useGameStore } from '@/store/gameStore';
 export default function TouchControls() {
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
-  const activeTouch = useRef<number | null>(null);
+  const joystickTouchId = useRef<number | null>(null);
+  const cameraTouchId = useRef<number | null>(null);
   const centerRef = useRef({ x: 0, y: 0 });
+  const lastCameraX = useRef(0);
 
   const {
     setMoveDirection,
+    setCameraAngle,
+    cameraAngle,
     currentInteraction,
     setShowMissionDialog,
     coins,
@@ -18,29 +22,19 @@ export default function TouchControls() {
     level,
   } = useGameStore();
 
+  const cameraAngleRef = useRef(cameraAngle);
+  cameraAngleRef.current = cameraAngle;
+
   const JOYSTICK_RADIUS = 60;
   const KNOB_RADIUS = 28;
+  const CAMERA_SENSITIVITY = 0.006;
 
-  const handleJoystickStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.touches[0];
-    if (!joystickRef.current) return;
-    activeTouch.current = touch.identifier;
-    const rect = joystickRef.current.getBoundingClientRect();
-    centerRef.current = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
-    updateKnob(touch.clientX, touch.clientY);
-  }, []);
-
+  // --- Joystick logic ---
   const updateKnob = useCallback((touchX: number, touchY: number) => {
     const dx = touchX - centerRef.current.x;
     const dy = touchY - centerRef.current.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     const maxDist = JOYSTICK_RADIUS;
-
     const clampedDist = Math.min(dist, maxDist);
     const angle = Math.atan2(dy, dx);
     const clampedX = Math.cos(angle) * clampedDist;
@@ -61,33 +55,64 @@ export default function TouchControls() {
     }
   }, [setMoveDirection]);
 
+  const handleJoystickStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.touches[e.touches.length - 1];
+    if (!joystickRef.current) return;
+    joystickTouchId.current = touch.identifier;
+    const rect = joystickRef.current.getBoundingClientRect();
+    centerRef.current = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+    updateKnob(touch.clientX, touch.clientY);
+  }, [updateKnob]);
+
+  // --- Camera swipe zone: anywhere on the right half ---
+  const handleCameraStart = useCallback((e: React.TouchEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const touch = e.changedTouches[0];
+    cameraTouchId.current = touch.identifier;
+    lastCameraX.current = touch.clientX;
+  }, []);
+
+  // --- Global touch handlers ---
   useEffect(() => {
     const handleTouchMove = (e: TouchEvent) => {
-      if (activeTouch.current === null) return;
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === activeTouch.current) {
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+
+        if (t.identifier === joystickTouchId.current) {
           e.preventDefault();
-          updateKnob(e.touches[i].clientX, e.touches[i].clientY);
-          break;
+          updateKnob(t.clientX, t.clientY);
+        }
+
+        if (t.identifier === cameraTouchId.current) {
+          e.preventDefault();
+          const deltaX = t.clientX - lastCameraX.current;
+          lastCameraX.current = t.clientX;
+          setCameraAngle(cameraAngleRef.current - deltaX * CAMERA_SENSITIVITY);
         }
       }
     };
 
     const handleTouchEnd = (e: TouchEvent) => {
-      if (activeTouch.current === null) return;
-      let found = false;
-      for (let i = 0; i < e.touches.length; i++) {
-        if (e.touches[i].identifier === activeTouch.current) {
-          found = true;
-          break;
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+
+        if (t.identifier === joystickTouchId.current) {
+          joystickTouchId.current = null;
+          if (knobRef.current) {
+            knobRef.current.style.transform = 'translate(0px, 0px)';
+          }
+          setMoveDirection({ x: 0, y: 0 });
         }
-      }
-      if (!found) {
-        activeTouch.current = null;
-        if (knobRef.current) {
-          knobRef.current.style.transform = 'translate(0px, 0px)';
+
+        if (t.identifier === cameraTouchId.current) {
+          cameraTouchId.current = null;
         }
-        setMoveDirection({ x: 0, y: 0 });
       }
     };
 
@@ -100,7 +125,7 @@ export default function TouchControls() {
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('touchcancel', handleTouchEnd);
     };
-  }, [setMoveDirection, updateKnob]);
+  }, [setMoveDirection, setCameraAngle, updateKnob]);
 
   const handleAction = useCallback(() => {
     if (currentInteraction) {
@@ -189,6 +214,20 @@ export default function TouchControls() {
         </div>
       </div>
 
+      {/* Camera swipe zone — right half of screen */}
+      <div
+        onTouchStart={handleCameraStart}
+        style={{
+          position: 'absolute',
+          top: 60,
+          right: 0,
+          width: '55%',
+          bottom: 150,
+          pointerEvents: 'auto',
+          touchAction: 'none',
+        }}
+      />
+
       {/* Joystick — bottom left */}
       <div
         ref={joystickRef}
@@ -209,7 +248,6 @@ export default function TouchControls() {
           justifyContent: 'center',
         }}
       >
-        {/* Knob */}
         <div
           ref={knobRef}
           style={{
@@ -219,7 +257,6 @@ export default function TouchControls() {
             background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 100%)',
             border: '2px solid rgba(255,255,255,0.6)',
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
-            transition: 'none',
             willChange: 'transform',
           }}
         />
