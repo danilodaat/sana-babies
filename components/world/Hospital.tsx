@@ -156,17 +156,7 @@ export function Hospital() {
           <meshStandardMaterial color="#FAFAFA" />
         </mesh>
 
-        {/* ── Door ── */}
-        <mesh position={[0, 2, D / 2 + 0.1]}>
-          <boxGeometry args={[3.5, 4, 0.1]} />
-          <meshStandardMaterial color="#5D4037" />
-        </mesh>
-
-        {/* Door frame */}
-        <mesh position={[0, 2, D / 2 + 0.15]}>
-          <boxGeometry args={[3.8, 4.3, 0.05]} />
-          <meshStandardMaterial color="#795548" />
-        </mesh>
+        {/* La puerta es <HospitalDoor /> (automática y sin colisión): antes era un bloque sólido que tapaba la entrada */}
 
         {/* ── Roof ── */}
         <mesh castShadow position={[0, H + 0.15, 0]}>

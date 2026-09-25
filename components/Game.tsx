@@ -33,6 +33,7 @@ import Residencial from './world/Residencial';
 import School from './world/School';
 import Playground from './world/Playground';
 import HospitalDecor from './world/HospitalDecor';
+import HospitalDoor from './world/HospitalDoor';
 import Shop from './ui/Shop';
 import Album from './ui/Album';
 import Tutorial from './ui/Tutorial';
@@ -158,6 +159,7 @@ export default function Game() {
             <Ambulance />
             <Zones />
             <HospitalDecor />
+            <HospitalDoor />
             <ObjectiveArrow />
             <Foliage />
             <Sky />
