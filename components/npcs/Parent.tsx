@@ -12,10 +12,12 @@ import { useNpc, useMarker, MissionMarker } from './useNpc';
 interface ParentProps {
   id: string;
   position: [number, number, number];
-  variant?: 'mother' | 'father';
+  /** Adultos o niños (los niños son el mismo modelo a escala, con otros colores) */
+  variant?: 'mother' | 'father' | 'girl' | 'boy';
+  /** Color de la polera; por defecto el de cada variante */
+  color?: string;
   hasBaby?: boolean;
   name?: string;
-  dialogue?: string;
 }
 
 const IDLE_SWAY_SPEED = 1.5;
@@ -27,35 +29,27 @@ export default function Parent({
   variant = 'mother',
   hasBaby = false,
   name = 'Mamá Rosa',
-  dialogue = 'Doctor, necesito su ayuda...',
+  color,
 }: ParentProps) {
   const groupRef = useRef<THREE.Group>(null);
   const idlePhase = useRef(Math.random() * Math.PI * 2);
 
-  const showMissionDialog = useGameStore((s) => s.showMissionDialog);
-  const currentInteraction = useGameStore((s) => s.currentInteraction);
+  const modal = useGameStore((s) => s.modal);
   const { isNear, cheerRef } = useNpc(id, position);
   const marker = useMarker(id);
 
-  const isMother = variant === 'mother';
+  const isMother = variant === 'mother' || variant === 'girl';
+  const isKid = variant === 'girl' || variant === 'boy';
 
-  const colors = useMemo(
-    () =>
-      isMother
-        ? {
-            shirt: '#e91e63',
-            pants: '#5c6bc0',
-            hair: '#3e2723',
-            skin: '#f5c6a0',
-          }
-        : {
-            shirt: '#1565c0',
-            pants: '#37474f',
-            hair: '#212121',
-            skin: '#d7a87e',
-          },
-    [isMother]
-  );
+  const colors = useMemo(() => {
+    const base = {
+      mother: { shirt: '#e91e63', pants: '#5c6bc0', hair: '#3e2723', skin: '#f5c6a0' },
+      father: { shirt: '#1565c0', pants: '#37474f', hair: '#212121', skin: '#d7a87e' },
+      girl: { shirt: '#ff8fb1', pants: '#7e57c2', hair: '#5d4037', skin: '#f8d0b0' },
+      boy: { shirt: '#4fc3f7', pants: '#455a64', hair: '#3e2723', skin: '#e0b48e' },
+    }[variant];
+    return color ? { ...base, shirt: color } : base;
+  }, [variant, color]);
 
   const materials = useMemo(
     () => ({
@@ -119,8 +113,8 @@ export default function Parent({
     <RigidBody type="fixed" position={position} colliders={false}>
       <CapsuleCollider args={[0.4, 0.18]} position={[0, 0.6, 0]} sensor />
 
-      <group ref={cheerRef}>
-      {marker && <MissionMarker kind={marker} height={1.95} />}
+      <group ref={cheerRef} scale={isKid ? 0.72 : 1}>
+      {marker && <MissionMarker kind={marker} height={isKid ? 2.25 : 1.95} />}
       <group ref={groupRef} userData={{ outline: 0.012 }}>
         {/* === HEAD === */}
         <group position={[0, 1.25, 0]}>
@@ -243,8 +237,9 @@ export default function Parent({
         </group>
 
         {/* === INTERACTION ICON === */}
-        {isNear && !showMissionDialog && !marker && (
+        {isNear && !modal && !marker && (
           <Html
+            zIndexRange={[10, 0]}
             position={[0, 1.65, 0]}
             center
             style={{ pointerEvents: 'none' }}
@@ -269,6 +264,7 @@ export default function Parent({
 
         {/* Name tag */}
         <Html
+          zIndexRange={[10, 0]}
           position={[0, 1.55, 0]}
           center
           style={{ pointerEvents: 'none' }}
@@ -291,31 +287,6 @@ export default function Parent({
           </div>
         </Html>
 
-        {/* Dialogue bubble when interacting */}
-        {isNear && showMissionDialog && currentInteraction === id && (
-          <Html
-            position={[0, 1.85, 0]}
-            center
-            style={{ pointerEvents: 'none' }}
-          >
-            <div
-              style={{
-                background: 'rgba(255,255,255,0.95)',
-                color: '#333',
-                padding: '8px 14px',
-                borderRadius: 12,
-                fontSize: 12,
-                fontWeight: 500,
-                maxWidth: 180,
-                textAlign: 'center',
-                boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-                lineHeight: 1.4,
-              }}
-            >
-              {dialogue}
-            </div>
-          </Html>
-        )}
       </group>
       </group>
     </RigidBody>

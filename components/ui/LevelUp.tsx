@@ -11,7 +11,7 @@ export default function LevelUp() {
   const levelUp = useGameStore((s) => s.levelUp);
   const clearLevelUp = useGameStore((s) => s.clearLevelUp);
   // Solo celebrar cuando no hay diálogos encima
-  const busy = useGameStore((s) => s.showMissionDialog || s.activeMiniGame !== null);
+  const busy = useGameStore((s) => s.modal);
 
   useEffect(() => {
     if (levelUp === null || busy) return;

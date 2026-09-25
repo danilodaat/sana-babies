@@ -1,0 +1,312 @@
+/**
+ * Sistema único de casos clínicos (reemplaza lib/missions.ts y
+ * lib/gameMissions.ts de la Fase 1). Todo el contenido jugable es data:
+ * para agregar un paciente nuevo basta con sumar un caso aquí.
+ *
+ * Flujo de un caso:
+ *   oferta (o llamada de emergencia) → ir con el paciente → examen
+ *   (1-2 minijuegos) → diagnóstico: elegir 1 de 3 tratamientos →
+ *   tratamiento (minijuego o aplicación) → estrellas y recompensa.
+ */
+
+export type ExamGame = 'thermometer' | 'stethoscope' | 'flashlight';
+export type TreatGame = 'bandaid' | 'vaccine' | 'syrup';
+export type CaseType = 'consulta' | 'emergencia' | 'campana' | 'visita';
+
+export interface TreatmentOption {
+  id: string;
+  label: string;
+  emoji: string;
+}
+
+export interface Finding {
+  emoji: string;
+  text: string;
+}
+
+export interface Case {
+  id: string;
+  title: string;
+  type: CaseType;
+  zone: string;
+  /** Quién te pide ayuda (en emergencias no hay: llega por teléfono) */
+  giverId?: string;
+  patientId: string;
+  minLevel: number;
+  /** Casos que hay que completar antes */
+  requires?: string[];
+  giverDialogue: string;
+  description: string;
+  /** Minijuegos de examen, en orden */
+  exam: ExamGame[];
+  /** Lo que "descubres" con cada examen (mismo orden que exam; si no hay examen, observación directa) */
+  findings: Finding[];
+  treatment: {
+    options: [TreatmentOption, TreatmentOption, TreatmentOption];
+    correct: string;
+    /** Pista amable cuando se elige mal */
+    hint: string;
+    game?: TreatGame;
+    /** Dosis objetivo para el jarabe, en ml */
+    dose?: number;
+    /** Texto de la aplicación cuando no hay minijuego de tratamiento */
+    applyText?: string;
+  };
+  thanks: string;
+  reward: { coins: number; xp: number };
+  /** Solo emergencias: segundos para llegar con el bonus */
+  timeLimit?: number;
+  /** Solo emergencias: recorrido de la ambulancia desde el hospital, puntos [x, z] */
+  ambulanceRoute?: [number, number][];
+  repeatable?: boolean;
+}
+
+const T = {
+  syrupFever: { id: 'syrup-fever', label: 'Jarabe para la fiebre', emoji: '🍯' },
+  syrupThroat: { id: 'syrup-throat', label: 'Jarabe para la garganta', emoji: '🍯' },
+  bandaid: { id: 'bandaid', label: 'Limpiar y poner curita', emoji: '🩹' },
+  vaccine: { id: 'vaccine', label: 'Vacuna', emoji: '💉' },
+  inhaler: { id: 'inhaler', label: 'Inhalador', emoji: '🌬️' },
+  sunCream: { id: 'sun-cream', label: 'Crema para el sol', emoji: '🧴' },
+  iceCream: { id: 'ice-cream', label: 'Un helado', emoji: '🍦' },
+  coat: { id: 'coat', label: 'Abrigarlo mucho', emoji: '🧥' },
+  shade: { id: 'shade', label: 'Sombra y suero', emoji: '⛱️' },
+  cast: { id: 'cast', label: 'Enyesar la pierna', emoji: '🦴' },
+  rest: { id: 'rest', label: 'Solo descansar', emoji: '🛌' },
+} satisfies Record<string, TreatmentOption>;
+
+export const CASES: Case[] = [
+  // ─── Historia: nivel 1 ───
+  {
+    id: 'mission-primer-paciente',
+    title: 'Primer Paciente',
+    type: 'consulta',
+    zone: 'Hospital Sana',
+    giverId: 'parent-1',
+    patientId: 'baby-1',
+    minLevel: 1,
+    giverDialogue: 'Doctor, mi bebé Luciana está muy calientita desde anoche... ¿La puede revisar?',
+    description: 'Tómale la temperatura a Luciana y decide cómo ayudarla.',
+    exam: ['thermometer'],
+    findings: [{ emoji: '🌡️', text: '38.6 °C — tiene fiebre' }],
+    treatment: {
+      options: [T.syrupFever, T.bandaid, T.sunCream],
+      correct: 'syrup-fever',
+      hint: 'Mmm... Luciana no tiene heridas ni se quemó con el sol. ¿Qué baja la fiebre?',
+      game: 'syrup',
+      dose: 5,
+    },
+    thanks: '¡Gracias doctor! Luciana ya está fresquita y sonriendo.',
+    reward: { coins: 50, xp: 100 },
+  },
+  {
+    id: 'mission-emergencia-parque',
+    title: 'Rodilla Raspada',
+    type: 'consulta',
+    zone: 'Hospital Sana',
+    giverId: 'baby-2',
+    patientId: 'baby-2',
+    minLevel: 1,
+    giverDialogue: '¡Ay, me caí jugando y me raspé la rodilla! ¿Me ayudas?',
+    description: 'Mira la herida de Mateo y cúrala.',
+    exam: [],
+    findings: [{ emoji: '👀', text: 'Raspón pequeño en la rodilla' }],
+    treatment: {
+      options: [T.vaccine, T.bandaid, T.syrupFever],
+      correct: 'bandaid',
+      hint: 'Una vacuna o un jarabe no tapan la herida. ¿Qué se pone en un raspón?',
+      game: 'bandaid',
+    },
+    thanks: '¡Mi curita es de dinosaurio! ¡Gracias!',
+    reward: { coins: 60, xp: 120 },
+  },
+
+  // ─── Historia: nivel 2 ───
+  {
+    id: 'mission-vacunacion',
+    title: 'Hora de la Vacuna',
+    type: 'campana',
+    zone: 'Hospital Sana',
+    giverId: 'parent-2',
+    patientId: 'parent-2',
+    minLevel: 2,
+    requires: ['mission-primer-paciente'],
+    giverDialogue: 'Doctor, a mi hijo le toca su vacuna. Primero revíselo, por favor.',
+    description: 'Escucha su corazón y luego ponle la vacuna.',
+    exam: ['stethoscope'],
+    findings: [{ emoji: '❤️', text: 'Corazón fuerte y sano' }],
+    treatment: {
+      options: [T.rest, T.vaccine, T.iceCream],
+      correct: 'vaccine',
+      hint: '¡Está sano! Hoy vino por algo que lo protege de enfermarse...',
+      game: 'vaccine',
+    },
+    thanks: '¡Ni lloró! Gracias doctor, ahora está protegido.',
+    reward: { coins: 100, xp: 200 },
+  },
+  {
+    id: 'case-tos-sofi',
+    title: 'Tos en el Parque',
+    type: 'visita',
+    zone: 'Parque Central',
+    giverId: 'kid-sofi',
+    patientId: 'kid-sofi',
+    minLevel: 2,
+    requires: ['mission-emergencia-parque'],
+    giverDialogue: '*cof cof* Doc, cuando corro me cuesta respirar y hago un silbidito...',
+    description: 'Escucha los pulmones de Sofi con el estetoscopio.',
+    exam: ['stethoscope'],
+    findings: [{ emoji: '🫁', text: 'Silbidos al respirar — sus bronquios están apretados' }],
+    treatment: {
+      options: [T.inhaler, T.bandaid, T.vaccine],
+      correct: 'inhaler',
+      hint: 'Sofi necesita que el aire entre fácil a sus pulmones. ¿Qué la ayuda a respirar?',
+      applyText: 'Sofi respira hondo con el inhalador... ¡fiuuu!',
+    },
+    thanks: '¡Ya puedo correr sin silbar! ¡Gracias doc!',
+    reward: { coins: 90, xp: 200 },
+  },
+
+  // ─── Historia: nivel 3 ───
+  {
+    id: 'case-garganta-tomas',
+    title: 'Garganta Roja',
+    type: 'visita',
+    zone: 'Escuela Arcoíris',
+    giverId: 'kid-tomas',
+    patientId: 'kid-tomas',
+    minLevel: 3,
+    requires: ['case-tos-sofi'],
+    giverDialogue: 'Doctor... me duele mucho la garganta cuando trago. Y tengo un poquito de calor.',
+    description: 'Revisa la garganta de Tomás con la linterna y tómale la temperatura.',
+    exam: ['flashlight', 'thermometer'],
+    findings: [
+      { emoji: '🔦', text: 'Garganta roja con bichitos' },
+      { emoji: '🌡️', text: '37.9 °C — un poco de fiebre' },
+    ],
+    treatment: {
+      options: [T.iceCream, T.syrupThroat, T.cast],
+      correct: 'syrup-throat',
+      hint: 'Un helado se siente rico, ¡pero no cura! ¿Qué combate los bichitos de la garganta?',
+      game: 'syrup',
+      dose: 7.5,
+    },
+    thanks: '¡Ya puedo tragar sin que duela! Le voy a contar a toda la clase.',
+    reward: { coins: 130, xp: 260 },
+  },
+
+  // ─── Emergencias (llegan por teléfono desde nivel 2, repetibles) ───
+  {
+    id: 'emergency-calor-valentina',
+    title: '¡Bebé con mucho calor!',
+    type: 'emergencia',
+    zone: 'Parque Central',
+    patientId: 'baby-valentina',
+    minLevel: 2,
+    giverDialogue: '¡Doctor! La bebé Valentina estuvo mucho rato al sol en el parque y está muy colorada.',
+    description: 'Corre al Parque Central antes de que se acabe el tiempo.',
+    exam: ['thermometer'],
+    findings: [{ emoji: '🌡️', text: '38.2 °C — golpe de calor' }],
+    treatment: {
+      options: [T.coat, T.shade, T.vaccine],
+      correct: 'shade',
+      hint: 'Si la abrigamos le dará más calor. ¿Qué la refresca e hidrata?',
+      game: 'syrup',
+      dose: 5,
+    },
+    thanks: '¡Valentina ya está fresquita a la sombra! ¡Gracias por llegar tan rápido!',
+    reward: { coins: 80, xp: 180 },
+    timeLimit: 50,
+    ambulanceRoute: [[6, 16], [-36, 16], [-36, 21]],
+    repeatable: true,
+  },
+  {
+    id: 'emergency-columpio-diego',
+    title: '¡Caída del columpio!',
+    type: 'emergencia',
+    zone: 'Parque Central',
+    patientId: 'kid-diego',
+    minLevel: 2,
+    giverDialogue: '¡Doctor, Diego se cayó jugando en el parque y se lastimó el codo!',
+    description: 'Llega rápido al Parque Central y revisa a Diego.',
+    exam: ['flashlight'],
+    findings: [{ emoji: '🔦', text: 'Raspón en el codo con tierrita, sin huesos rotos' }],
+    treatment: {
+      options: [T.cast, T.bandaid, T.syrupFever],
+      correct: 'bandaid',
+      hint: 'No hay huesos rotos, así que no hace falta yeso. ¿Qué se hace con un raspón?',
+      game: 'bandaid',
+    },
+    thanks: '¡Soy un valiente! Gracias doc, ya me voy a jugar con cuidado.',
+    reward: { coins: 80, xp: 180 },
+    timeLimit: 55,
+    ambulanceRoute: [[6, 16], [-44, 16], [-44, 21]],
+    repeatable: true,
+  },
+  {
+    id: 'emergency-escuela-tomas',
+    title: '¡Mareo en la escuela!',
+    type: 'emergencia',
+    zone: 'Escuela Arcoíris',
+    patientId: 'kid-tomas',
+    minLevel: 3,
+    giverDialogue: '¡Doctor! Tomás se mareó en el recreo después de correr mucho al sol.',
+    description: 'Ve a la Escuela Arcoíris lo antes posible.',
+    exam: ['stethoscope', 'thermometer'],
+    findings: [
+      { emoji: '❤️', text: 'Corazón acelerado de tanto correr' },
+      { emoji: '🌡️', text: '37.8 °C — acalorado' },
+    ],
+    treatment: {
+      options: [T.shade, T.cast, T.inhaler],
+      correct: 'shade',
+      hint: 'Sus pulmones y huesos están bien. Necesita refrescarse y tomar líquido.',
+      applyText: 'Tomás descansa a la sombra y toma su suero... ¡glu glu!',
+    },
+    thanks: '¡Ya me siento mucho mejor! Gracias doctor.',
+    reward: { coins: 90, xp: 200 },
+    timeLimit: 45,
+    ambulanceRoute: [[6, 16], [32, 16], [32, 20.5]],
+    repeatable: true,
+  },
+];
+
+export const CASE_BY_ID: Record<string, Case> = Object.fromEntries(CASES.map((c) => [c.id, c]));
+
+export const isEmergency = (c: Case) => c.type === 'emergencia';
+
+const FEMININE_ZONES = ['Escuela', 'Guardería', 'Playa', 'Colinas'];
+/** "al Parque Central" / "a la Escuela Arcoíris" */
+export function zoneTo(zone: string) {
+  return FEMININE_ZONES.some((z) => zone.startsWith(z)) ? `a la ${zone}` : `al ${zone}`;
+}
+/** "en el Parque Central" / "en la Escuela Arcoíris" */
+export function zoneIn(zone: string) {
+  return FEMININE_ZONES.some((z) => zone.startsWith(z)) ? `en la ${zone}` : `en el ${zone}`;
+}
+
+/** Casos de historia disponibles para ofrecerse ahora mismo */
+export function availableStoryCases(level: number, completed: string[]): Case[] {
+  return CASES.filter(
+    (c) =>
+      !isEmergency(c) &&
+      c.giverId &&
+      level >= c.minLevel &&
+      !completed.includes(c.id) &&
+      (c.requires ?? []).every((r) => completed.includes(r)),
+  );
+}
+
+export function emergencyPool(level: number): Case[] {
+  return CASES.filter((c) => isEmergency(c) && level >= c.minLevel);
+}
+
+/** Estrellas finales del caso a partir de cómo se jugó */
+export function scoreCase(opts: { exam: number[]; treat: number; wrongPicks: number; emergency?: { onTime: boolean } }) {
+  const examAvg = opts.exam.length ? opts.exam.reduce((a, b) => a + b, 0) / opts.exam.length : 1;
+  const firstTry = opts.wrongPicks === 0 ? 1 : opts.wrongPicks === 1 ? 0.45 : 0.2;
+  let score = examAvg * 0.35 + opts.treat * 0.35 + firstTry * 0.3;
+  if (opts.emergency && !opts.emergency.onTime) score *= 0.85;
+  const stars: 1 | 2 | 3 = score >= 0.8 ? 3 : score >= 0.5 ? 2 : 1;
+  return { score, stars };
+}

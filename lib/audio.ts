@@ -193,7 +193,87 @@ export const sfx = {
   whoosh() {
     noise(0.35, { vol: 0.1, freq: 900, q: 0.6 });
   },
+  /** Latido "lub-dub" para el estetoscopio */
+  heartbeat() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    tone(95, 0.09, { type: 'sine', vol: 0.55, slideTo: 45, when: t });
+    tone(85, 0.08, { type: 'sine', vol: 0.4, slideTo: 40, when: t + 0.14 });
+  },
+  wrong() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    tone(330, 0.1, { type: 'triangle', vol: 0.2, when: t });
+    tone(262, 0.18, { type: 'triangle', vol: 0.2, when: t + 0.1 });
+  },
+  /** Timbre del teléfono de emergencias */
+  phone() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    for (let r = 0; r < 2; r++) {
+      for (let i = 0; i < 6; i++) {
+        tone(i % 2 ? 1320 : 1560, 0.045, { type: 'square', vol: 0.05, when: t + r * 0.7 + i * 0.05 });
+      }
+    }
+  },
+  bubble() {
+    const f = 300 + Math.random() * 300;
+    tone(f, 0.07, { type: 'sine', vol: 0.12, slideTo: f * 1.8 });
+  },
+  found() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    bell(midi(84), 0.25, 0.22, t);
+    bell(midi(91), 0.3, 0.18, t + 0.07);
+  },
+  alarm() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    for (let i = 0; i < 4; i++) tone(i % 2 ? 740 : 988, 0.18, { type: 'sawtooth', vol: 0.06, when: t + i * 0.2 });
+  },
 };
+
+// ─── Sirena continua de la ambulancia (volumen según distancia) ───
+
+let siren: { gain: GainNode; osc: OscillatorNode; lfo: OscillatorNode } | null = null;
+
+export function setSiren(volume: number) {
+  const c = ensure();
+  if (!c) return;
+  if (volume <= 0.001) {
+    if (siren) {
+      siren.gain.gain.setTargetAtTime(0, c.currentTime, 0.1);
+    }
+    return;
+  }
+  if (!siren) {
+    const osc = c.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = 820;
+    // LFO cuadrado: alterna entre dos tonos ("ni-no, ni-no")
+    const lfo = c.createOscillator();
+    lfo.type = 'square';
+    lfo.frequency.value = 1.6;
+    const lfoGain = c.createGain();
+    lfoGain.gain.value = 130;
+    lfo.connect(lfoGain).connect(osc.frequency);
+    const filter = c.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 1800;
+    const gain = c.createGain();
+    gain.gain.value = 0;
+    osc.connect(filter).connect(gain).connect(sfxBus);
+    osc.start();
+    lfo.start();
+    siren = { gain, osc, lfo };
+  }
+  siren.gain.gain.setTargetAtTime(volume * 0.07, c.currentTime, 0.1);
+}
 
 // ─── Música procedural ───
 // I–vi–IV–V en Do mayor, 96 BPM. De día: marimba + bajo + shaker + melodía.

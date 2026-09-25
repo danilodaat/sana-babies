@@ -1,17 +1,43 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
-import MissionDialog from './ui/MissionDialog';
-import Thermometer from './minigames/Thermometer';
-import BandAid from './minigames/BandAid';
-import Vaccine from './minigames/Vaccine';
-import type { MiniGameResult } from './ui/MiniGame';
-import { GAME_MISSIONS, NPC_NAMES, NPC_CHAT_DIALOGUES, type GameMission } from '@/lib/gameMissions';
+import { CASE_BY_ID, availableStoryCases, emergencyPool, isEmergency, scoreCase, zoneIn, zoneTo, type Case, type TreatmentOption } from '@/lib/cases';
+import { NPC_BY_ID, npcName } from '@/lib/npcs';
+import { getObjective, nearestNpc } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
 import { npcPositions, cheerNpc } from '@/lib/runtime';
-import * as THREE from 'three';
+import type { MiniGameResult } from './ui/MiniGame';
+import Thermometer from './minigames/Thermometer';
+import BandAid from './minigames/BandAid';
+import Vaccine from './minigames/Vaccine';
+import Stethoscope from './minigames/Stethoscope';
+import Flashlight from './minigames/Flashlight';
+import Syrup from './minigames/Syrup';
+import { ApplyCard, ChatCard, DiagnosisCard, OfferCard, PhoneCall, ResultCard } from './ui/CaseUI';
+
+/*
+ * Máquina de estados de un caso clínico:
+ *   idle → offer | phone → (caminar) → exam[0..n] → diagnosis → treat | apply → result → idle
+ * El caso activo y la emergencia viven en el store (persisten / los leen minimapa y flecha);
+ * el paso actual del caso vive aquí.
+ */
+
+type Flow =
+  | { t: 'idle' }
+  | { t: 'chat'; npcId: string; text: string }
+  | { t: 'offer'; c: Case }
+  | { t: 'phone'; c: Case }
+  | { t: 'exam'; c: Case; step: number; scores: number[] }
+  | { t: 'diagnosis'; c: Case; scores: number[]; wrong: string[] }
+  | { t: 'treat'; c: Case; scores: number[]; wrong: string[] }
+  | { t: 'apply'; c: Case; scores: number[]; wrong: string[]; option: TreatmentOption }
+  | { t: 'result'; c: Case; stars: 1 | 2 | 3; coins: number; xp: number; onTime: boolean | null };
+
+const EMERGENCY_MIN_GAP = 55_000;
+const EMERGENCY_MAX_GAP = 110_000;
 
 /** Festejo en el paciente: corazones, destellos y su baile */
 function celebrateAt(npcId: string, stars: number) {
@@ -25,382 +51,307 @@ function celebrateAt(npcId: string, stars: number) {
   cheerNpc(npcId);
 }
 
-// ─── Flow states ───
-type FlowState =
-  | { type: 'idle' }
-  | { type: 'chat'; npcId: string; text: string }
-  | { type: 'offer'; mission: GameMission }
-  | { type: 'active'; mission: GameMission }
-  | { type: 'ready-to-treat'; mission: GameMission }
-  | { type: 'minigame'; mission: GameMission }
-  | { type: 'complete'; mission: GameMission; result: MiniGameResult };
+function pick<T>(arr: T[]): T {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
 
 export default function GameFlow() {
-  const [flow, setFlow] = useState<FlowState>({ type: 'idle' });
-  const acceptedList = useGameStore((s) => s.acceptedMissions);
-  const acceptMission = useGameStore((s) => s.acceptMission);
-  const acceptedMissions = { has: (id: string) => acceptedList.includes(id) };
+  const [flow, setFlow] = useState<Flow>({ t: 'idle' });
 
   const actionTriggered = useGameStore((s) => s.actionTriggered);
-  const currentInteraction = useGameStore((s) => s.currentInteraction);
-  const completedMissions = useGameStore((s) => s.completedMissions);
-  const setShowMissionDialog = useGameStore((s) => s.setShowMissionDialog);
-  const setCurrentMission = useGameStore((s) => s.setCurrentMission);
-  const setActiveMiniGame = useGameStore((s) => s.setActiveMiniGame);
-  const setDialogMode = useGameStore((s) => s.setDialogMode);
-  const completeMission = useGameStore((s) => s.completeMission);
+  const setModal = useGameStore((s) => s.setModal);
+  const startCase = useGameStore((s) => s.startCase);
+  const markArrival = useGameStore((s) => s.markArrival);
+  const finishCase = useGameStore((s) => s.finishCase);
+  const cancelEmergency = useGameStore((s) => s.cancelEmergency);
   const addCoins = useGameStore((s) => s.addCoins);
   const addXP = useGameStore((s) => s.addXP);
 
-  // Track previous actionTriggered to detect changes
-  const prevActionRef = useRef(actionTriggered);
+  const flowRef = useRef(flow);
+  flowRef.current = flow;
+  const prevAction = useRef(actionTriggered);
+  const nextEmergencyGap = useRef(EMERGENCY_MIN_GAP);
+  const lastEmergencyId = useRef<string | null>(null);
 
-  // ─── Handle action button press ───
+  // El doctor se congela y el HUD se atenúa mientras haya algo abierto
   useEffect(() => {
-    if (actionTriggered === prevActionRef.current) return;
-    prevActionRef.current = actionTriggered;
+    setModal(flow.t !== 'idle');
+    const minigame = flow.t === 'exam' || flow.t === 'treat';
+    duckMusic(minigame);
+  }, [flow.t, setModal]);
 
-    // Don't do anything if we're in a dialog/minigame/completion
-    if (flow.type !== 'idle' && flow.type !== 'active') return;
+  // Una emergencia no sobrevive a recargar la página (su reloj se perdió)
+  useEffect(() => {
+    const s = useGameStore.getState();
+    if (s.activeCase && isEmergency(CASE_BY_ID[s.activeCase]) && !s.emergency) cancelEmergency();
+  }, [cancelEmergency]);
 
-    const npcId = currentInteraction;
+  // ─── Botón de acción junto a un NPC ───
+  useEffect(() => {
+    if (actionTriggered === prevAction.current) return;
+    prevAction.current = actionTriggered;
+    if (flowRef.current.t !== 'idle') return;
+
+    const s = useGameStore.getState();
+    const npcId = s.currentInteraction;
     if (!npcId) return;
+    const active = s.activeCase ? CASE_BY_ID[s.activeCase] : null;
 
-    // Check if there's an accepted mission where this NPC is the target
-    if (flow.type === 'active' && flow.mission.npcTarget === npcId) {
-      // Ready to treat — open the mini-game
-      setFlow({ type: 'minigame', mission: flow.mission });
-      setActiveMiniGame(flow.mission.miniGame);
-      duckMusic(true);
-      return;
-    }
-
-    // Check if there's an available mission from this NPC (giver)
-    const availableMission = GAME_MISSIONS.find(
-      (m) =>
-        m.npcGiver === npcId &&
-        !completedMissions.includes(m.id) &&
-        !acceptedMissions.has(m.id)
-    );
-
-    if (availableMission) {
-      // Offer the mission
-      setFlow({ type: 'offer', mission: availableMission });
-      setCurrentMission({
-        id: availableMission.id,
-        title: availableMission.title,
-        description: availableMission.giverDialogue + '\n\n' + availableMission.description,
-        zone: availableMission.zone,
-        type: availableMission.type,
-        reward: availableMission.reward,
-        completed: false,
-      });
-      setDialogMode('offer');
-      setShowMissionDialog(true);
+    // 1) Es mi paciente: empezar a atender
+    if (active && active.patientId === npcId) {
+      if (s.emergency) markArrival(Date.now() <= s.emergency.endsAt);
       sfx.pop();
+      setFlow(active.exam.length ? { t: 'exam', c: active, step: 0, scores: [] } : { t: 'diagnosis', c: active, scores: [], wrong: [] });
       return;
     }
 
-    // Check if there's an accepted mission where this NPC is the target (idle state)
-    const activeMission = GAME_MISSIONS.find(
-      (m) =>
-        m.npcTarget === npcId &&
-        acceptedMissions.has(m.id) &&
-        !completedMissions.includes(m.id)
-    );
-
-    if (activeMission) {
-      // Go directly to minigame
-      setFlow({ type: 'minigame', mission: activeMission });
-      setActiveMiniGame(activeMission.miniGame);
-      duckMusic(true);
+    // 2) Tengo un caso activo y hablo con otro NPC
+    if (active) {
+      const who = npcName(active.patientId);
+      const text =
+        active.giverId === npcId
+          ? `¡${who} te está esperando! Sigue la flecha.`
+          : `${pick(NPC_BY_ID[npcId]?.chat ?? ['¡Hola doctor!'])} (Tu paciente ${who} te espera ${zoneIn(active.zone)})`;
+      setFlow({ t: 'chat', npcId, text });
       return;
     }
 
-    // No mission — just show a chat dialogue
-    const chatText = NPC_CHAT_DIALOGUES[npcId] || '...';
-    setFlow({ type: 'chat', npcId, text: chatText });
-    setDialogMode('chat');
-  }, [
-    actionTriggered,
-    currentInteraction,
-    flow,
-    completedMissions,
-    acceptedList,
-    setShowMissionDialog,
-    setCurrentMission,
-    setActiveMiniGame,
-    setDialogMode,
-  ]);
+    // 3) ¿Este NPC pide ayuda?
+    const offer = availableStoryCases(s.level, s.completedMissions).find((c) => c.giverId === npcId);
+    if (offer) {
+      sfx.pop();
+      setFlow({ t: 'offer', c: offer });
+      return;
+    }
 
-  // ─── Mission accepted ───
-  const handleAcceptMission = useCallback(() => {
-    if (flow.type !== 'offer') return;
-    const mission = flow.mission;
+    // 4) Charla
+    setFlow({ t: 'chat', npcId, text: pick(NPC_BY_ID[npcId]?.chat ?? ['¡Hola doctor!']) });
+  }, [actionTriggered, markArrival]);
 
-    acceptMission(mission.id);
+  // ─── Director de emergencias: cada tanto suena el teléfono ───
+  useEffect(() => {
+    const id = setInterval(() => {
+      const s = useGameStore.getState();
+      if (!s.started || s.modal || s.activeCase || s.levelUp !== null || flowRef.current.t !== 'idle') return;
+      if (Date.now() - s.lastCaseEndedAt < nextEmergencyGap.current) return;
+      // Mientras queden casos de historia en el nivel 2, no interrumpir tan seguido
+      const pool = emergencyPool(s.level).filter((c) => c.id !== lastEmergencyId.current);
+      if (!pool.length) return;
+      const c = pick(pool);
+      lastEmergencyId.current = c.id;
+      nextEmergencyGap.current = EMERGENCY_MIN_GAP + Math.random() * (EMERGENCY_MAX_GAP - EMERGENCY_MIN_GAP);
+      sfx.phone();
+      setFlow({ t: 'phone', c });
+    }, 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // ─── Acciones de las tarjetas ───
+  const acceptOffer = useCallback(() => {
+    const f = flowRef.current;
+    if (f.t !== 'offer') return;
     sfx.success();
-    setShowMissionDialog(false);
-    setDialogMode(null);
+    startCase(f.c.id);
+    setFlow({ t: 'idle' });
+  }, [startCase]);
 
-    // If the giver IS the target, we stay idle and wait for next action
-    // If the giver and target are different, player needs to walk to target
-    setFlow({ type: 'active', mission });
-  }, [flow, acceptMission, setShowMissionDialog, setDialogMode]);
+  const acceptEmergency = useCallback(() => {
+    const f = flowRef.current;
+    if (f.t !== 'phone') return;
+    sfx.alarm();
+    startCase(f.c.id, { caseId: f.c.id, endsAt: Date.now() + (f.c.timeLimit ?? 60) * 1000, onTime: null });
+    setFlow({ t: 'idle' });
+  }, [startCase]);
 
-  // ─── Mission rejected ───
-  const handleRejectMission = useCallback(() => {
+  const rejectEmergency = useCallback(() => {
     sfx.click();
-    setShowMissionDialog(false);
-    setCurrentMission(null);
-    setDialogMode(null);
-    setFlow({ type: 'idle' });
-  }, [setShowMissionDialog, setCurrentMission, setDialogMode]);
+    // Reinicia la espera para la próxima llamada
+    useGameStore.setState({ lastCaseEndedAt: Date.now() });
+    setFlow({ t: 'idle' });
+  }, []);
 
-  // ─── Mini-game finished ───
-  const handleMiniGameFinish = useCallback(
-    (result: MiniGameResult) => {
-      if (flow.type !== 'minigame') return;
-      const mission = flow.mission;
+  const close = useCallback(() => {
+    sfx.click();
+    setFlow({ t: 'idle' });
+  }, []);
 
-      setActiveMiniGame(null);
-      duckMusic(false);
+  const examDone = useCallback((r: MiniGameResult) => {
+    const f = flowRef.current;
+    if (f.t !== 'exam') return;
+    const scores = [...f.scores, r.precision];
+    if (f.step + 1 < f.c.exam.length) setFlow({ t: 'exam', c: f.c, step: f.step + 1, scores });
+    else setFlow({ t: 'diagnosis', c: f.c, scores, wrong: [] });
+  }, []);
 
-      // Festejo en el mundo + sonido según las estrellas
-      if (result.stars >= 2) sfx.heal();
-      else sfx.fail();
+  const finishTreatment = useCallback(
+    (c: Case, scores: number[], wrong: string[], treatPrecision: number) => {
+      const s = useGameStore.getState();
+      const onTime = s.emergency ? s.emergency.onTime ?? false : null;
+      const { stars } = scoreCase({ exam: scores, treat: treatPrecision, wrongPicks: wrong.length, emergency: s.emergency ? { onTime: !!onTime } : undefined });
+      const mult = stars === 3 ? 1 : stars === 2 ? 0.75 : 0.5;
+      let coins = Math.round(c.reward.coins * mult);
+      if (onTime) coins = Math.round(coins * 1.5);
+      const xp = Math.round(c.reward.xp * mult);
+
+      if (stars >= 2) sfx.heal();
+      else sfx.success();
       setTimeout(() => sfx.coin(), 350);
-      celebrateAt(mission.npcTarget, result.stars);
-
-      // Give rewards scaled by stars
-      const starMultiplier = result.stars === 3 ? 1.0 : result.stars === 2 ? 0.7 : 0.4;
-      const earnedCoins = Math.round(mission.reward.coins * starMultiplier);
-      const earnedXP = Math.round(mission.reward.xp * starMultiplier);
-      addCoins(earnedCoins);
-      addXP(earnedXP);
-
-      // Show completion dialog
-      setCurrentMission({
-        id: mission.id,
-        title: mission.title,
-        description: mission.description,
-        zone: mission.zone,
-        type: mission.type,
-        reward: { coins: earnedCoins, xp: earnedXP },
-        completed: true,
-      });
-      setDialogMode('complete');
-      setShowMissionDialog(true);
-
-      setFlow({ type: 'complete', mission, result });
+      celebrateAt(c.patientId, stars);
+      setFlow({ t: 'result', c, stars, coins, xp, onTime });
     },
-    [flow, setActiveMiniGame, setCurrentMission, setDialogMode, setShowMissionDialog, addCoins, addXP],
+    [],
   );
 
-  // ─── Mini-game closed without finishing ───
-  const handleMiniGameClose = useCallback(() => {
-    if (flow.type !== 'minigame') return;
-    setActiveMiniGame(null);
-    duckMusic(false);
-    sfx.click();
-    // Go back to active state — player can retry
-    setFlow({ type: 'active', mission: flow.mission });
-  }, [flow, setActiveMiniGame]);
+  const pickTreatment = useCallback(
+    (o: TreatmentOption) => {
+      const f = flowRef.current;
+      if (f.t !== 'diagnosis') return;
+      if (o.id !== f.c.treatment.correct) {
+        sfx.wrong();
+        setFlow({ ...f, wrong: [...f.wrong, o.id] });
+        return;
+      }
+      sfx.success();
+      if (f.c.treatment.game) setFlow({ t: 'treat', c: f.c, scores: f.scores, wrong: f.wrong });
+      else setFlow({ t: 'apply', c: f.c, scores: f.scores, wrong: f.wrong, option: o });
+    },
+    [],
+  );
 
-  // ─── Completion dialog accepted ───
-  const handleCompletionContinue = useCallback(() => {
-    if (flow.type !== 'complete') return;
-    sfx.click();
-    completeMission(flow.mission.id);
-    setShowMissionDialog(false);
-    setCurrentMission(null);
-    setDialogMode(null);
-    setFlow({ type: 'idle' });
-  }, [flow, completeMission, setShowMissionDialog, setCurrentMission, setDialogMode]);
+  const treatDone = useCallback(
+    (r: MiniGameResult) => {
+      const f = flowRef.current;
+      if (f.t !== 'treat') return;
+      finishTreatment(f.c, f.scores, f.wrong, r.precision);
+    },
+    [finishTreatment],
+  );
 
-  // ─── Chat dialog dismissed ───
-  const handleChatDismiss = useCallback(() => {
-    sfx.click();
-    setDialogMode(null);
-    setFlow({ type: 'idle' });
-  }, [setDialogMode]);
+  const applyDone = useCallback(() => {
+    const f = flowRef.current;
+    if (f.t !== 'apply') return;
+    finishTreatment(f.c, f.scores, f.wrong, 1);
+  }, [finishTreatment]);
 
-  // ─── Active mission hint banner ───
-  const activeMission = flow.type === 'active' ? flow.mission : null;
-  const isNearTarget =
-    activeMission && currentInteraction === activeMission.npcTarget;
+  // Cerrar un minijuego a medias: el caso sigue activo, se puede reintentar
+  const abortMinigame = useCallback(() => {
+    sfx.click();
+    setFlow({ t: 'idle' });
+  }, []);
+
+  const collect = useCallback(() => {
+    const f = flowRef.current;
+    if (f.t !== 'result') return;
+    sfx.click();
+    addCoins(f.coins);
+    addXP(f.xp);
+    finishCase(f.c.id, !!f.c.repeatable);
+    setFlow({ t: 'idle' });
+  }, [addCoins, addXP, finishCase]);
+
+  // ─── Render ───
+  let content: React.ReactNode = null;
+  switch (flow.t) {
+    case 'chat':
+      content = <ChatCard name={npcName(flow.npcId)} text={flow.text} onClose={close} />;
+      break;
+    case 'offer':
+      content = <OfferCard c={flow.c} onAccept={acceptOffer} onReject={close} />;
+      break;
+    case 'phone':
+      content = <PhoneCall c={flow.c} onAccept={acceptEmergency} onReject={rejectEmergency} />;
+      break;
+    case 'exam': {
+      const game = flow.c.exam[flow.step];
+      const key = `${flow.c.id}-exam-${flow.step}`;
+      if (game === 'thermometer') content = <Thermometer key={key} onFinish={examDone} onClose={abortMinigame} />;
+      if (game === 'stethoscope') content = <Stethoscope key={key} onFinish={examDone} onClose={abortMinigame} />;
+      if (game === 'flashlight') content = <Flashlight key={key} onFinish={examDone} onClose={abortMinigame} />;
+      break;
+    }
+    case 'diagnosis':
+      content = <DiagnosisCard c={flow.c} findings={flow.c.findings} wrong={flow.wrong} onPick={pickTreatment} />;
+      break;
+    case 'treat': {
+      const t = flow.c.treatment;
+      if (t.game === 'bandaid') content = <BandAid onFinish={treatDone} onClose={abortMinigame} />;
+      if (t.game === 'vaccine') content = <Vaccine onFinish={treatDone} onClose={abortMinigame} />;
+      if (t.game === 'syrup') {
+        const label = t.options.find((o) => o.id === t.correct)?.label.toLowerCase() ?? 'jarabe';
+        content = <Syrup dose={t.dose ?? 5} label={label} onFinish={treatDone} onClose={abortMinigame} />;
+      }
+      break;
+    }
+    case 'apply':
+      content = <ApplyCard c={flow.c} option={flow.option} onDone={applyDone} />;
+      break;
+    case 'result':
+      content = <ResultCard c={flow.c} stars={flow.stars} coins={flow.coins} xp={flow.xp} onTime={flow.onTime} onContinue={collect} />;
+      break;
+  }
 
   return (
-    <div
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 30,
-        pointerEvents: 'none',
-      }}
-    >
-      {/* ─── Active mission hint ─── */}
-      {activeMission && flow.type === 'active' && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 52,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: 'rgba(0,0,0,0.6)',
-            color: '#fff',
-            padding: '6px 16px',
-            borderRadius: 16,
-            fontSize: 13,
-            fontWeight: 700,
-            fontFamily: 'system-ui, sans-serif',
-            whiteSpace: 'nowrap',
-            pointerEvents: 'none',
-          }}
-        >
-          {isNearTarget
-            ? `Toca el boton para atender a ${NPC_NAMES[activeMission.npcTarget] || 'el paciente'}`
-            : `Ve hacia ${NPC_NAMES[activeMission.npcTarget] || 'el paciente'}`}
-        </div>
-      )}
+    <div style={{ position: 'fixed', inset: 0, zIndex: 30, pointerEvents: 'none' }}>
+      {flow.t === 'idle' && <ObjectiveBanner />}
+      {content && <div style={{ pointerEvents: 'auto' }}>{content}</div>}
+    </div>
+  );
+}
 
-      {/* ─── Chat dialog ─── */}
-      {flow.type === 'chat' && (
-        <div
-          style={{
-            position: 'absolute',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'flex-end',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-          }}
-        >
-          {/* Backdrop */}
-          <div
-            style={{
-              position: 'absolute',
-              inset: 0,
-              background: 'rgba(0,0,0,0.2)',
-            }}
-            onTouchStart={(e) => {
-              e.stopPropagation();
-              handleChatDismiss();
-            }}
-            onClick={handleChatDismiss}
-          />
-          {/* Chat bubble */}
-          <div
-            style={{
-              position: 'relative',
-              zIndex: 10,
-              width: '85%',
-              maxWidth: 360,
-              marginBottom: 24,
-              background: 'linear-gradient(to bottom, #fff, #FFF8DC)',
-              borderRadius: 24,
-              border: '2px solid #E8C88A',
-              padding: '20px 24px',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: 12,
-              boxShadow: '0 8px 32px rgba(0,0,0,0.15)',
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-          >
-            <div
-              style={{
-                fontSize: 14,
-                fontWeight: 800,
-                color: '#7c3aed',
-                fontFamily: 'system-ui, sans-serif',
-              }}
-            >
-              {NPC_NAMES[flow.npcId] || 'NPC'}
-            </div>
-            <p
-              style={{
-                fontSize: 14,
-                color: '#555',
-                textAlign: 'center',
-                lineHeight: 1.5,
-                fontFamily: 'system-ui, sans-serif',
-                margin: 0,
-              }}
-            >
-              {flow.text}
-            </p>
-            <button
-              style={{
-                width: '100%',
-                padding: '12px 0',
-                borderRadius: 16,
-                border: 'none',
-                background: 'linear-gradient(to right, #60a5fa, #3b82f6)',
-                color: '#fff',
-                fontSize: 15,
-                fontWeight: 700,
-                fontFamily: 'system-ui, sans-serif',
-                cursor: 'pointer',
-                pointerEvents: 'auto',
-              }}
-              onTouchStart={(e) => {
-                e.stopPropagation();
-                handleChatDismiss();
-              }}
-              onClick={handleChatDismiss}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+// ─── Banner de objetivo: qué hacer, a cuántos metros y, en emergencias, el reloj ───
+function ObjectiveBanner() {
+  const activeCase = useGameStore((s) => s.activeCase);
+  const emergency = useGameStore((s) => s.emergency);
+  const level = useGameStore((s) => s.level);
+  const completed = useGameStore((s) => s.completedMissions);
+  const near = useGameStore((s) => s.currentInteraction);
+  const [, force] = useState(0);
 
-      {/* ─── Mission offer dialog ─── */}
-      {flow.type === 'offer' && (
-        <div style={{ pointerEvents: 'auto' }}>
-          <MissionDialog
-            mode="offer"
-            onAccept={handleAcceptMission}
-            onReject={handleRejectMission}
-          />
-        </div>
-      )}
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 250);
+    return () => clearInterval(id);
+  }, []);
 
-      {/* ─── Mission complete dialog ─── */}
-      {flow.type === 'complete' && (
-        <div style={{ pointerEvents: 'auto' }}>
-          <MissionDialog
-            mode="complete"
-            onAccept={handleCompletionContinue}
-          />
-        </div>
-      )}
+  const obj = getObjective({ activeCase, emergency, level, completedMissions: completed });
+  if (!obj) {
+    return (
+      <div style={{ position: 'absolute', top: 'calc(max(env(safe-area-inset-top), 10px) + 48px)', left: 12, right: 136 }}>
+        <div className="sb-banner">🌟 ¡Todos sanos por ahora! Pasea por Ciudad Sana, pronto sonará el teléfono.</div>
+      </div>
+    );
+  }
+  const target = nearestNpc(obj.ids);
+  const dist = target ? Math.round(target.dist) : null;
+  const name = target ? npcName(target.id) : '';
+  const c = obj.caseId ? CASE_BY_ID[obj.caseId] : null;
 
-      {/* ─── Mini-games ─── */}
-      {flow.type === 'minigame' && (
-        <div style={{ pointerEvents: 'auto' }}>
-          {flow.mission.miniGame === 'thermometer' && (
-            <Thermometer
-              onFinish={handleMiniGameFinish}
-              onClose={handleMiniGameClose}
-            />
-          )}
-          {flow.mission.miniGame === 'bandaid' && (
-            <BandAid
-              onFinish={handleMiniGameFinish}
-              onClose={handleMiniGameClose}
-            />
-          )}
-          {flow.mission.miniGame === 'vaccine' && (
-            <Vaccine
-              onFinish={handleMiniGameFinish}
-              onClose={handleMiniGameClose}
-            />
-          )}
-        </div>
-      )}
+  let icon = '❗';
+  let text = `${name} necesita ayuda`;
+  let alert = false;
+  if (obj.kind === 'patient' && c) {
+    icon = '➕';
+    text = near === c.patientId ? `Toca ❤️‍🩹 para atender a ${name}` : `${c.title}: ve con ${name}`;
+  }
+  if (obj.kind === 'emergency' && c && emergency) {
+    alert = true;
+    icon = '🚨';
+    const left = Math.max(0, Math.ceil((emergency.endsAt - Date.now()) / 1000));
+    const clock = `${Math.floor(left / 60)}:${String(left % 60).padStart(2, '0')}`;
+    text =
+      near === c.patientId
+        ? `¡Llegaste! Toca ❤️‍🩹 para atender a ${name}`
+        : left > 0
+          ? `${clock} · ¡Corre con ${name} ${zoneTo(c.zone)}!`
+          : `¡${name} todavía te necesita ${zoneIn(c.zone)}!`;
+  }
+
+  return (
+    <div style={{ position: 'absolute', top: 'calc(max(env(safe-area-inset-top), 10px) + 48px)', left: 12, right: 136 }}>
+      <div className={`sb-banner${alert ? ' sb-banner-alert' : ''}`}>
+        <span style={{ fontSize: 16 }}>{icon}</span>
+        <span style={{ flex: 1 }}>{text}</span>
+        {dist !== null && near !== target?.id && <span style={{ opacity: 0.8, whiteSpace: 'nowrap' }}>{dist} m</span>}
+      </div>
     </div>
   );
 }

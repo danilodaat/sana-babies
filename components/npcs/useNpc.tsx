@@ -5,7 +5,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
 import { player, npcPositions, npcCheer } from '@/lib/runtime';
-import { GAME_MISSIONS } from '@/lib/gameMissions';
+import { CASE_BY_ID, availableStoryCases } from '@/lib/cases';
 import { sfx } from '@/lib/audio';
 
 const INTERACTION_DISTANCE = 2.5;
@@ -65,21 +65,28 @@ export function useNpc(id: string, position: [number, number, number]) {
   return { isNear, cheerRef };
 }
 
-/** Qué marcador mostrar sobre un NPC según el estado de las misiones */
-export function useMarker(id: string): 'offer' | 'target' | null {
-  const accepted = useGameStore((s) => s.acceptedMissions);
+/** Qué marcador mostrar sobre un NPC según el estado de los casos */
+export function useMarker(id: string): MarkerKind | null {
+  const activeCase = useGameStore((s) => s.activeCase);
+  const emergency = useGameStore((s) => s.emergency);
+  const level = useGameStore((s) => s.level);
   const completed = useGameStore((s) => s.completedMissions);
   return useMemo(() => {
-    const target = GAME_MISSIONS.some((m) => m.npcTarget === id && accepted.includes(m.id) && !completed.includes(m.id));
-    if (target) return 'target';
-    const offer = GAME_MISSIONS.some((m) => m.npcGiver === id && !accepted.includes(m.id) && !completed.includes(m.id));
-    return offer ? 'offer' : null;
-  }, [id, accepted, completed]);
+    if (activeCase) {
+      const c = CASE_BY_ID[activeCase];
+      if (c?.patientId === id) return emergency ? 'emergency' : 'target';
+      return null; // con un caso en curso, solo se marca al paciente
+    }
+    return availableStoryCases(level, completed).some((c) => c.giverId === id) ? 'offer' : null;
+  }, [id, activeCase, emergency, level, completed]);
 }
+
+export type MarkerKind = 'offer' | 'target' | 'emergency';
 
 const markerMats = {
   offer: new THREE.MeshStandardMaterial({ color: '#FFC928', emissive: '#FFB300', emissiveIntensity: 0.6 }),
   target: new THREE.MeshStandardMaterial({ color: '#FF4F7B', emissive: '#FF2D6B', emissiveIntensity: 0.6 }),
+  emergency: new THREE.MeshStandardMaterial({ color: '#FF3B3B', emissive: '#FF1A1A', emissiveIntensity: 1.6, toneMapped: false }),
 };
 const markerGeo = {
   bar: new THREE.CapsuleGeometry(0.07, 0.22, 4, 10),
@@ -88,7 +95,7 @@ const markerGeo = {
 };
 
 /** Signo "!" (misión disponible) o cruz médica (paciente por atender), flotando y girando */
-export function MissionMarker({ kind, height }: { kind: 'offer' | 'target'; height: number }) {
+export function MissionMarker({ kind, height }: { kind: MarkerKind; height: number }) {
   const ref = useRef<THREE.Group>(null);
   const phase = useRef(Math.random() * 10);
   useFrame((state) => {
@@ -96,7 +103,7 @@ export function MissionMarker({ kind, height }: { kind: 'offer' | 'target'; heig
     const t = state.clock.elapsedTime + phase.current;
     ref.current.position.y = height + Math.sin(t * 3) * 0.08;
     ref.current.rotation.y = t * 2;
-    const s = 1 + Math.sin(t * 6) * 0.05;
+    const s = kind === 'emergency' ? 1.25 + Math.abs(Math.sin(t * 8)) * 0.3 : 1 + Math.sin(t * 6) * 0.05;
     ref.current.scale.setScalar(s);
   });
   return (
@@ -108,8 +115,8 @@ export function MissionMarker({ kind, height }: { kind: 'offer' | 'target'; heig
         </>
       ) : (
         <>
-          <mesh geometry={markerGeo.cross} material={markerMats.target} />
-          <mesh geometry={markerGeo.cross} material={markerMats.target} rotation={[0, 0, Math.PI / 2]} />
+          <mesh geometry={markerGeo.cross} material={markerMats[kind]} />
+          <mesh geometry={markerGeo.cross} material={markerMats[kind]} rotation={[0, 0, Math.PI / 2]} />
         </>
       )}
     </group>

@@ -55,7 +55,7 @@ export default function Doctor() {
   const jumpHeld = useRef(false);
 
   const started = useGameStore((s) => s.started);
-  const frozen = useGameStore((s) => s.activeMiniGame !== null || s.showMissionDialog || s.dialogMode !== null);
+  const frozen = useGameStore((s) => s.modal);
   const [, getKeys] = useKeyboardControls();
   const { world, rapier } = useRapier();
   const ray = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }), [rapier]);

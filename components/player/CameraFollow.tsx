@@ -58,6 +58,12 @@ export default function CameraFollow() {
         .add(LOOK_OFFSET)
         .addScaledVector(flatVel.copy(player.velocity).setY(0), 0.18);
 
+      // Teletransporte / reaparición: saltar directo en vez de viajar por el mapa
+      if (pos.current.distanceTo(desired.current) > 20) {
+        pos.current.copy(desired.current);
+        look.current.copy(desiredLook.current);
+      }
+
       // La altura se suaviza más lento que XZ: los saltos no marean
       const kXZ = 1 - Math.exp(-6 * delta);
       const kY = 1 - Math.exp(-3 * delta);

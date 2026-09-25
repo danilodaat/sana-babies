@@ -1,39 +1,37 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
-export interface Mission {
-  id: string;
-  title: string;
-  description: string;
-  zone: string;
-  type: 'consulta' | 'emergencia' | 'visita' | 'campana' | 'historia';
-  reward: { coins: number; xp: number };
-  completed: boolean;
-}
-
 export type Quality = 'alto' | 'bajo';
+
+export interface EmergencyState {
+  caseId: string;
+  /** Date.now() límite para llegar con bonus */
+  endsAt: number;
+  /** Se fija al empezar a atender: true si llegó a tiempo */
+  onTime: boolean | null;
+}
 
 /*
  * Ojo: la posición del jugador, el joystick y el ángulo de cámara NO viven aquí.
  * Cambian cada frame y están en lib/runtime.ts para no re-renderizar React.
  */
 interface GameState {
-  // Flujo general
   started: boolean;
 
-  // Interacción
+  /** NPC cerca del doctor (el botón de acción lo atiende) */
   currentInteraction: string | null;
-  showMissionDialog: boolean;
-  currentMission: Mission | null;
-
-  activeMiniGame: string | null;
-  dialogMode: 'offer' | 'complete' | 'chat' | null;
   actionTriggered: number; // se incrementa en cada pulsación de acción
+  /** Hay un diálogo/minijuego abierto: el doctor no se mueve y el HUD se atenúa */
+  modal: boolean;
 
-  // Misiones
-  missions: Mission[];
-  acceptedMissions: string[];
+  // Casos clínicos
+  activeCase: string | null;
   completedMissions: string[];
+  emergency: EmergencyState | null;
+  /** Date.now() del último caso terminado, para espaciar emergencias */
+  lastCaseEndedAt: number;
+  /** Cuántos pacientes curados en total (incluye emergencias repetidas) */
+  patientsHealed: number;
 
   // Progresión
   coins: number;
@@ -49,17 +47,15 @@ interface GameState {
   // Acciones
   setStarted: (started: boolean) => void;
   interact: (npcId: string | null) => void;
-  setShowMissionDialog: (show: boolean) => void;
-  setCurrentMission: (mission: Mission | null) => void;
-  acceptMission: (missionId: string) => void;
-  completeMission: (missionId: string) => void;
+  triggerAction: () => void;
+  setModal: (modal: boolean) => void;
+  startCase: (caseId: string, emergency?: EmergencyState) => void;
+  markArrival: (onTime: boolean) => void;
+  finishCase: (caseId: string, repeatable: boolean) => void;
+  cancelEmergency: () => void;
   addCoins: (amount: number) => void;
   addXP: (amount: number) => void;
   clearLevelUp: () => void;
-  addMission: (mission: Mission) => void;
-  setActiveMiniGame: (game: string | null) => void;
-  setDialogMode: (mode: 'offer' | 'complete' | 'chat' | null) => void;
-  triggerAction: () => void;
   setMuted: (muted: boolean) => void;
   setQuality: (quality: Quality) => void;
   resetProgress: () => void;
@@ -112,8 +108,10 @@ const safeStorage: StateStorage = {
 };
 
 const initialProgress = {
-  acceptedMissions: [] as string[],
+  activeCase: null as string | null,
   completedMissions: [] as string[],
+  emergency: null as EmergencyState | null,
+  patientsHealed: 0,
   coins: 0,
   xp: 0,
   level: 1,
@@ -123,91 +121,76 @@ export const useGameStore = create<GameState>()(
   persist(
     (set) => ({
       started: false,
-
       currentInteraction: null,
-      showMissionDialog: false,
-      currentMission: null,
-
-      activeMiniGame: null,
-      dialogMode: null,
       actionTriggered: 0,
-
-      missions: [],
+      modal: false,
+      lastCaseEndedAt: 0,
       ...initialProgress,
       levelUp: null,
-
       muted: false,
       quality: defaultQuality(),
 
-      setStarted: (started) => set({ started }),
-
+      setStarted: (started) => set({ started, lastCaseEndedAt: Date.now() }),
       interact: (npcId) => set({ currentInteraction: npcId }),
+      triggerAction: () => set((s) => ({ actionTriggered: s.actionTriggered + 1 })),
+      setModal: (modal) => set({ modal }),
 
-      setShowMissionDialog: (show) => set({ showMissionDialog: show }),
+      startCase: (caseId, emergency) => set({ activeCase: caseId, emergency: emergency ?? null }),
 
-      setCurrentMission: (mission) =>
-        set({ currentMission: mission, showMissionDialog: mission !== null }),
+      markArrival: (onTime) =>
+        set((s) => (s.emergency && s.emergency.onTime === null ? { emergency: { ...s.emergency, onTime } } : {})),
 
-      acceptMission: (missionId) =>
-        set((state) =>
-          state.acceptedMissions.includes(missionId)
-            ? {}
-            : { acceptedMissions: [...state.acceptedMissions, missionId] },
-        ),
-
-      completeMission: (missionId) =>
-        set((state) => ({
-          missions: state.missions.filter((m) => m.id !== missionId),
-          acceptedMissions: state.acceptedMissions.filter((id) => id !== missionId),
-          completedMissions: state.completedMissions.includes(missionId)
-            ? state.completedMissions
-            : [...state.completedMissions, missionId],
-          showMissionDialog: false,
-          currentMission: null,
+      finishCase: (caseId, repeatable) =>
+        set((s) => ({
+          activeCase: null,
+          emergency: null,
+          lastCaseEndedAt: Date.now(),
+          patientsHealed: s.patientsHealed + 1,
+          completedMissions:
+            repeatable || s.completedMissions.includes(caseId) ? s.completedMissions : [...s.completedMissions, caseId],
         })),
 
-      addCoins: (amount) => set((state) => ({ coins: state.coins + amount })),
+      cancelEmergency: () => set({ activeCase: null, emergency: null, lastCaseEndedAt: Date.now() }),
+
+      addCoins: (amount) => set((s) => ({ coins: s.coins + amount })),
 
       addXP: (amount) =>
-        set((state) => {
-          const newXP = state.xp + amount;
+        set((s) => {
+          const newXP = s.xp + amount;
           const newLevel = calculateLevel(newXP);
-          return {
-            xp: newXP,
-            level: newLevel,
-            levelUp: newLevel > state.level ? newLevel : state.levelUp,
-          };
+          return { xp: newXP, level: newLevel, levelUp: newLevel > s.level ? newLevel : s.levelUp };
         }),
 
       clearLevelUp: () => set({ levelUp: null }),
-
-      addMission: (mission) => set((state) => ({ missions: [...state.missions, mission] })),
-
-      setActiveMiniGame: (game) => set({ activeMiniGame: game }),
-
-      setDialogMode: (mode) => set({ dialogMode: mode }),
-
-      triggerAction: () => set((state) => ({ actionTriggered: state.actionTriggered + 1 })),
-
       setMuted: (muted) => set({ muted }),
-
       setQuality: (quality) => set({ quality }),
-
       resetProgress: () => set({ ...initialProgress, levelUp: null }),
     }),
     {
       name: 'sana-babies-save',
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
-        acceptedMissions: s.acceptedMissions,
+        activeCase: s.activeCase,
         completedMissions: s.completedMissions,
+        patientsHealed: s.patientsHealed,
         coins: s.coins,
         xp: s.xp,
         level: s.level,
         muted: s.muted,
         quality: s.quality,
       }),
+      // v1 (Fase 1) guardaba una lista de misiones aceptadas: la primera pasa a ser el caso activo
+      migrate: (persisted, version) => {
+        const p = (persisted ?? {}) as Record<string, unknown>;
+        if (version < 2) {
+          const accepted = (p.acceptedMissions as string[] | undefined) ?? [];
+          p.activeCase = accepted[0] ?? null;
+          p.patientsHealed = ((p.completedMissions as string[] | undefined) ?? []).length;
+          delete p.acceptedMissions;
+        }
+        return p as unknown as GameState;
+      },
     },
   ),
 );
@@ -215,5 +198,5 @@ export const useGameStore = create<GameState>()(
 /** true si hay una partida guardada con algo de progreso */
 export function hasSavedProgress(): boolean {
   const s = useGameStore.getState();
-  return s.xp > 0 || s.coins > 0 || s.completedMissions.length > 0 || s.acceptedMissions.length > 0;
+  return s.xp > 0 || s.coins > 0 || s.completedMissions.length > 0 || s.activeCase !== null;
 }

@@ -22,6 +22,10 @@ import Toonify from './fx/Toonify';
 import Particles from './fx/Particles';
 import PostFX from './fx/PostFX';
 import LevelUp from './ui/LevelUp';
+import Minimap from './ui/Minimap';
+import Ambulance, { ambulance } from './world/Ambulance';
+import ObjectiveArrow from './fx/ObjectiveArrow';
+import { NPCS } from '@/lib/npcs';
 import { useGameStore } from '@/store/gameStore';
 
 /** Key‑map for KeyboardControls */
@@ -65,7 +69,7 @@ export default function Game() {
   // ?debug expone el runtime en la consola (adelantar la hora, teletransportar, etc.)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has('debug')) {
-      (window as unknown as Record<string, unknown>).__sb = { ...runtime, store: useGameStore };
+      (window as unknown as Record<string, unknown>).__sb = { ...runtime, store: useGameStore, ambulance };
     }
   }, []);
 
@@ -73,6 +77,11 @@ export default function Game() {
     <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden', touchAction: 'none' }}>
       {started && <TouchControls />}
       {started && <GameFlow />}
+      {started && (
+        <div style={{ position: 'fixed', inset: 0, zIndex: 25, pointerEvents: 'none' }}>
+          <Minimap />
+        </div>
+      )}
       <LevelUp />
 
       <Suspense fallback={<LoadingScreen />}>
@@ -94,14 +103,19 @@ export default function Game() {
               <Hospital />
               <City />
               <Doctor />
-              {/* NPCs */}
-              <Baby id="baby-1" position={[5, 0.5, 5]} name="Luciana" />
-              <Baby id="baby-2" position={[-3, 0.5, -4]} name="Mateo" bodyColor="#B3E5FC" />
-              <Parent id="parent-1" position={[-5, 0, 8]} variant="mother" hasBaby name="Rosa" dialogue="Doctor, mi bebé tiene fiebre..." />
-              <Parent id="parent-2" position={[8, 0, -3]} variant="father" name="Carlos" dialogue="¿Puede revisar a mi hijo?" />
+              {/* NPCs (definidos en lib/npcs.ts) */}
+              {NPCS.map((n) =>
+                n.kind === 'baby' ? (
+                  <Baby key={n.id} id={n.id} position={n.position} name={n.name} bodyColor={n.color} />
+                ) : (
+                  <Parent key={n.id} id={n.id} position={n.position} variant={n.kind} hasBaby={n.hasBaby} name={n.name} color={n.color} />
+                ),
+              )}
               <CameraFollow />
             </Physics>
 
+            <Ambulance />
+            <ObjectiveArrow />
             <Foliage />
             <Sky />
             <Particles />

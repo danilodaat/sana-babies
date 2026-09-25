@@ -61,7 +61,7 @@ export default function TouchControls() {
   const setMuted = useGameStore((s) => s.setMuted);
   const quality = useGameStore((s) => s.quality);
   const setQuality = useGameStore((s) => s.setQuality);
-  const busy = useGameStore((s) => s.activeMiniGame !== null || s.showMissionDialog || s.dialogMode !== null);
+  const busy = useGameStore((s) => s.modal);
 
   const showToast = (msg: string) => {
     setToast(msg);
@@ -156,7 +156,7 @@ export default function TouchControls() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
         const s = useGameStore.getState();
-        if (s.currentInteraction && !s.showMissionDialog && !s.activeMiniGame && !s.dialogMode) {
+        if (s.currentInteraction && !s.modal) {
           sfx.click();
           s.triggerAction();
         }

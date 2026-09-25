@@ -161,6 +161,7 @@ export default function Baby({
         {/* === FLOATING ICON when player is nearby === */}
         {isNear && !marker && (
           <Html
+            zIndexRange={[10, 0]}
             position={[0, 0.85, 0]}
             center
             style={{ pointerEvents: 'none' }}
@@ -185,6 +186,7 @@ export default function Baby({
 
         {/* Name tag */}
         <Html
+          zIndexRange={[10, 0]}
           position={[0, 0.95, 0]}
           center
           style={{ pointerEvents: 'none' }}
