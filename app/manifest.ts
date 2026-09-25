@@ -1,10 +1,10 @@
 import type { MetadataRoute } from 'next';
 
-/** PWA: permite instalar Sana Babies como app en el celular */
+/** PWA: permite instalar Sanna Babys como app en el celular */
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'Sana Babies',
-    short_name: 'Sana Babies',
+    name: 'Sanna Babys',
+    short_name: 'Sanna Babys',
     description: 'Cuidando al mundo, un pasito a la vez. Juego de doctor para niños.',
     start_url: '/',
     scope: '/',

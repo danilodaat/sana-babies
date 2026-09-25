@@ -8,7 +8,7 @@ import { resetRuntime } from '@/lib/runtime';
 
 const Game = dynamic(() => import('@/components/Game'), { ssr: false });
 
-const TITLE = 'Sana Babies';
+const TITLE = 'Sanna Babys';
 
 interface InstallPrompt extends Event {
   prompt: () => Promise<void>;

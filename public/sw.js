@@ -1,12 +1,12 @@
 /*
- * Service worker de Sana Babies: el juego no necesita red una vez cargado
+ * Service worker de Sanna Babys: el juego no necesita red una vez cargado
  * (audio sintetizado, geometría procedural), así que se cachea todo para
  * poder jugar sin conexión.
  *  - Navegación: primero la red (para recibir actualizaciones), si falla, la copia guardada
  *  - /_next/static: caché primero (los nombres llevan hash, nunca cambian)
  *  - Resto del mismo origen: devuelve lo guardado y actualiza en segundo plano
  */
-const VERSION = 'sb-v5';
+const VERSION = 'sb-v6';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {

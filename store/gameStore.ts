@@ -239,6 +239,7 @@ export const useGameStore = create<GameState>()(
       resetProgress: () => set({ ...initialProgress, levelUp: null }),
     }),
     {
+      // Nombre interno del guardado: no cambiar aunque el juego se renombre (se perdería el progreso)
       name: 'sana-babies-save',
       version: 3,
       storage: createJSONStorage(() => safeStorage),
