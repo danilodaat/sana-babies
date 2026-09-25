@@ -16,7 +16,7 @@ function Swing({ phase }: { phase: number }) {
     if (ref.current) ref.current.rotation.x = Math.sin(s.clock.elapsedTime * 1.8 + phase) * 0.45;
   });
   return (
-    <group ref={ref} position={[0, 2.6, 0]}>
+    <group ref={ref} position={[0, 2.6, 0]} userData={{ noBatch: true }}>
       {[-0.32, 0.32].map((x) => (
         <mesh key={x} position={[x, -0.95, 0]}>
           <cylinderGeometry args={[0.02, 0.02, 1.9, 4]} />
@@ -166,10 +166,12 @@ function IceCreamCart({ position }: { position: [number, number, number] }) {
 export default function Playground() {
   return (
     <RigidBody type="fixed" colliders="trimesh">
+      <group userData={{ batch: true }}>
       <SwingSet position={[-50, 0, 37.5]} />
       <Slide position={[-30, 0, 32]} rotation={Math.PI} />
       <Sandbox position={[-47, 0, 44]} />
       <IceCreamCart position={[-37.5, 0, 28.3]} />
+      </group>
     </RigidBody>
   );
 }

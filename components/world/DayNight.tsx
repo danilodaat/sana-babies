@@ -229,7 +229,7 @@ export default function DayNight() {
       <hemisphereLight ref={hemi} args={['#BFE3FF', '#7CC66A', 0.3]} />
       <directionalLight
         ref={sun}
-        castShadow
+        castShadow={quality === 'alto'}
         target={lightTarget}
         intensity={1.2}
         shadow-mapSize-width={shadowSize}

@@ -1,8 +1,8 @@
 'use client';
 
-import { Suspense, useEffect } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import * as runtime from '@/lib/runtime';
-import { Canvas } from '@react-three/fiber';
+import { Canvas, useThree } from '@react-three/fiber';
 import { Physics } from '@react-three/rapier';
 import { KeyboardControls, PerformanceMonitor } from '@react-three/drei';
 import * as THREE from 'three';
@@ -19,6 +19,8 @@ import GameFlow from './GameFlow';
 import Baby from './npcs/Baby';
 import Parent from './npcs/Parent';
 import Toonify from './fx/Toonify';
+import StaticBatcher from './fx/StaticBatcher';
+import { ShadowQuality } from './fx/Shadows';
 import Particles from './fx/Particles';
 import PostFX from './fx/PostFX';
 import LevelUp from './ui/LevelUp';
@@ -45,6 +47,18 @@ const KEY_MAP = [
   { name: 'right', keys: ['ArrowRight', 'KeyD'] },
   { name: 'jump', keys: ['Space'] },
 ];
+
+/** ?debug: expone el renderer para medir draw calls y triángulos */
+function DebugGl() {
+  const gl = useThree((s) => s.gl);
+  const scene = useThree((s) => s.scene);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).has('debug')) {
+      (window as unknown as Record<string, unknown>).__gl = { gl, scene };
+    }
+  }, [gl, scene]);
+  return null;
+}
 
 /* ─── Loading fallback ─── */
 function LoadingScreen() {
@@ -74,6 +88,8 @@ export default function Game() {
   const quality = useGameStore((s) => s.quality);
   const started = useGameStore((s) => s.started);
   const setQuality = useGameStore((s) => s.setQuality);
+  // Primer aviso de bajo rendimiento: bajar resolución. Segundo: modo ahorro.
+  const [lowDpr, setLowDpr] = useState(false);
 
   // ?debug expone el runtime en la consola (adelantar la hora, teletransportar, etc.)
   useEffect(() => {
@@ -102,14 +118,22 @@ export default function Game() {
         <KeyboardControls map={KEY_MAP}>
           <Canvas
             shadows={{ type: THREE.PCFShadowMap }}
-            dpr={quality === 'alto' ? [1, 2] : [1, 1.25]}
+            dpr={quality === 'alto' && !lowDpr ? [1, 2] : [1, 1.25]}
             style={{ width: '100%', height: '100%', touchAction: 'none' }}
             camera={{ fov: 50, near: 0.1, far: 500, position: [0, 13, 30] }}
             gl={{ antialias: quality !== 'alto', powerPreference: 'high-performance', toneMapping: THREE.NeutralToneMapping }}
           >
             {/* Si el celular no aguanta, baja la calidad sola una vez */}
-            <PerformanceMonitor onDecline={() => started && quality === 'alto' && setQuality('bajo')} />
+            <PerformanceMonitor
+              onDecline={() => {
+                if (!started || quality !== 'alto') return;
+                if (!lowDpr) setLowDpr(true);
+                else setQuality('bajo');
+              }}
+            />
 
+            <DebugGl />
+            <ShadowQuality />
             <DayNight />
 
             <Physics gravity={[0, -24, 0]}>
@@ -139,6 +163,7 @@ export default function Game() {
             <Sky />
             <Particles />
             <Toonify />
+            <StaticBatcher />
             <PostFX />
           </Canvas>
         </KeyboardControls>

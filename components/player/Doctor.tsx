@@ -12,6 +12,7 @@ import { emit } from '@/lib/fx';
 import { sfx } from '@/lib/audio';
 import { ITEM_BY_ID } from '@/lib/shop';
 import { getToonGradient } from '@/components/fx/Toonify';
+import { BlobShadow } from '@/components/fx/Shadows';
 
 const MOVE_SPEED = 4.6;
 const ACCEL = 14; // qué tan rápido alcanza la velocidad (1/s)
@@ -309,6 +310,7 @@ export default function Doctor() {
     >
       <CapsuleCollider args={[0.4, 0.22]} position={[0, 0.62, 0]} />
 
+      <BlobShadow />
       <group ref={groupRef} userData={{ outline: 0.014 }}>
         <group ref={bodyRef}>
           {/* === HEAD === */}

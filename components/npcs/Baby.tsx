@@ -6,6 +6,7 @@ import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useNpc, useMarker, MissionMarker } from './useNpc';
+import { BlobShadow } from '@/components/fx/Shadows';
 
 interface BabyProps {
   id: string;
@@ -74,9 +75,12 @@ export default function Baby({
     >
       <CapsuleCollider args={[0.15, 0.12]} position={[0, 0.3, 0]} sensor />
 
+      <group position={[0, -0.47, 0]}>
+        <BlobShadow scale={0.6} />
+      </group>
       <group ref={cheerRef} scale={1.35}>
       {marker && <MissionMarker kind={marker} height={1.25} />}
-      <group ref={groupRef} userData={{ outline: 0.012 }}>
+      <group ref={groupRef} userData={{ outline: 0.012, batchLocal: true }}>
         {/* === HEAD (big, baby proportion) === */}
         <group position={[0, 0.55, 0]}>
           <mesh geometry={geometries.head} material={materials.skin} />
@@ -185,6 +189,8 @@ export default function Baby({
         )}
 
         {/* Name tag */}
+        {/* Solo cerca: cada <Html> se reposiciona en cada frame aunque esté invisible */}
+        {isNear && (
         <Html
           zIndexRange={[10, 0]}
           position={[0, 0.95, 0]}
@@ -208,6 +214,7 @@ export default function Baby({
             {name}
           </div>
         </Html>
+        )}
       </group>
       </group>
     </RigidBody>

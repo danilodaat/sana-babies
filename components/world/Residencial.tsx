@@ -151,7 +151,7 @@ export default function Residencial() {
   const [lx, lz, lw, ld] = RESIDENCIAL_LANE;
   return (
     <RigidBody type="fixed" colliders="trimesh">
-      <group>
+      <group userData={{ batch: true }}>
         {/* Calle Sol */}
         <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[lx, 0.021, lz]}>
           <planeGeometry args={[lw, ld]} />
@@ -167,7 +167,9 @@ export default function Residencial() {
           <House key={`${h.x}-${h.z}`} {...h} />
         ))}
       </group>
-      <SunArch x={-30.5} z={lz} />
+      <group userData={{ batch: true }}>
+        <SunArch x={-30.5} z={lz} />
+      </group>
     </RigidBody>
   );
 }

@@ -8,6 +8,7 @@ import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
 import { player } from '@/lib/runtime';
 import { useNpc, useMarker, MissionMarker } from './useNpc';
+import { BlobShadow } from '@/components/fx/Shadows';
 
 interface ParentProps {
   id: string;
@@ -115,9 +116,10 @@ export default function Parent({
     <RigidBody type="fixed" position={position} colliders={false}>
       <CapsuleCollider args={[0.4, 0.18]} position={[0, 0.6, 0]} sensor />
 
+      <BlobShadow scale={isKid ? 0.75 : 1} />
       <group ref={cheerRef} scale={isKid ? 0.72 : 1}>
       {marker && <MissionMarker kind={marker} height={isKid ? 2.25 : 1.95} />}
-      <group ref={groupRef} userData={{ outline: 0.012 }}>
+      <group ref={groupRef} userData={{ outline: 0.012, batchLocal: true }}>
         {/* === HEAD === */}
         <group position={[0, 1.25, 0]}>
           <mesh geometry={geometries.head} material={materials.skin} />
@@ -281,6 +283,8 @@ export default function Parent({
         )}
 
         {/* Name tag */}
+        {/* Solo cerca: cada <Html> se reposiciona en cada frame aunque esté invisible */}
+        {isNear && (
         <Html
           zIndexRange={[10, 0]}
           position={[0, 1.55, 0]}
@@ -304,6 +308,7 @@ export default function Parent({
             {name}
           </div>
         </Html>
+        )}
 
       </group>
       </group>

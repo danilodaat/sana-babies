@@ -12,6 +12,13 @@ const fredoka = Fredoka({
 export const metadata: Metadata = {
   title: "Sana Babies",
   description: "Cuidando al mundo, un pasito a la vez",
+  applicationName: "Sana Babies",
+  // iPhone: "Compartir → Agregar a inicio" la abre a pantalla completa, sin barra del navegador
+  appleWebApp: { capable: true, title: "Sana Babies", statusBarStyle: "black-translucent" },
+  icons: {
+    icon: [{ url: "/icons/icon-192.png", sizes: "192x192", type: "image/png" }],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180" }],
+  },
 };
 
 export const viewport: Viewport = {

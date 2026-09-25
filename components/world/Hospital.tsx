@@ -93,7 +93,7 @@ export function Hospital() {
 
   return (
     <RigidBody type="fixed" colliders="trimesh">
-      <group position={[0, 0, 0]}>
+      <group position={[0, 0, 0]} userData={{ batch: true }}>
         {/* ── Floor ── */}
         <mesh receiveShadow position={[0, 0.01, 0]}>
           <boxGeometry args={[W, 0.15, D]} />

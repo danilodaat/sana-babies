@@ -124,7 +124,7 @@ export default function Ambulance() {
   });
 
   return (
-    <group ref={group} position={[HOME[0], 0, HOME[1]]} userData={{ outline: 0.03 }}>
+    <group ref={group} position={[HOME[0], 0, HOME[1]]} userData={{ outline: 0.03, batchLocal: true }}>
       {/* Carrocería (el frente mira hacia +z local) */}
       <mesh material={mats.body} position={[0, 1.15, -0.4]} castShadow>
         <boxGeometry args={[2.1, 1.7, 3.4]} />
@@ -158,7 +158,7 @@ export default function Ambulance() {
         <boxGeometry args={[0.7, 0.22, 0.4]} />
       </mesh>
       {/* Ruedas */}
-      <group ref={wheels}>
+      <group ref={wheels} userData={{ noBatch: true }}>
         {[
           [-1, 0.38, 1.5],
           [1, 0.38, 1.5],

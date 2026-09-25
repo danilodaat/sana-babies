@@ -17,7 +17,7 @@ export default function School() {
   return (
     <RigidBody type="fixed" colliders="trimesh">
       {/* Rotada 180°: la fachada (+z local) mira a la avenida (-z) */}
-      <group position={[x, 0, z]} rotation={[0, Math.PI, 0]}>
+      <group position={[x, 0, z]} rotation={[0, Math.PI, 0]} userData={{ batch: true }}>
         {/* Cuerpo */}
         <mesh castShadow receiveShadow position={[0, h / 2, 0]}>
           <boxGeometry args={[w, h, d]} />

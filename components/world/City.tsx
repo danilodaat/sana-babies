@@ -270,7 +270,7 @@ function FlowerBed({ position }: { position: [number, number, number] }) {
 export function City() {
   return (
     <RigidBody type="fixed" colliders="trimesh">
-      <group>
+      <group userData={{ batch: true }}>
         {/* ═══ ROADS ═══ */}
         {/* Main road — east-west (in front of hospital) */}
         <Road position={[0, 0, 18]} size={[120, 8]} />
