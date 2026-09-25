@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { sfx } from '@/lib/audio';
+import { useArmed } from '@/lib/useArmed';
 
 export interface MiniGameResult {
   stars: 1 | 2 | 3;
@@ -43,6 +44,7 @@ export default function MiniGame({
   onClose,
 }: MiniGameProps) {
   const [timeLeft, setTimeLeft] = useState(duration);
+  const armed = useArmed();
   const [finished, setFinished] = useState(false);
   const [result, setResult] = useState<MiniGameResult | null>(null);
   const startTime = useRef(Date.now());
@@ -99,15 +101,14 @@ export default function MiniGame({
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
 
       {/* Container */}
-      <div className="relative z-10 w-[90%] max-w-md flex flex-col items-center gap-4 p-5 bg-gradient-to-b from-white to-[#FFF8DC] rounded-3xl shadow-2xl border-2 border-sky-200">
+      <div
+        className="relative z-10 w-[90%] max-w-md flex flex-col items-center gap-4 p-5 bg-gradient-to-b from-white to-[#FFF8DC] rounded-3xl shadow-2xl border-2 border-sky-200"
+        style={{ pointerEvents: armed ? 'auto' : 'none' }}
+      >
         {/* Close button */}
         {onClose && !finished && (
           <button
             className="absolute top-3 right-3 w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 font-bold text-sm active:scale-90 transition-transform"
-            onTouchStart={(e) => {
-              e.stopPropagation();
-              onClose();
-            }}
             onClick={onClose}
           >
             ✕

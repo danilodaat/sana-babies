@@ -91,11 +91,10 @@ function VaccineGame({
     <div
       className="relative w-full h-64 rounded-2xl overflow-hidden select-none touch-none flex items-center justify-center"
       style={{ background: '#FFF8DC' }}
-      onTouchStart={(e) => {
+      onPointerDown={(e) => {
         e.preventDefault();
         handleTap();
       }}
-      onClick={handleTap}
     >
       {/* Arm (rectangle) */}
       <div

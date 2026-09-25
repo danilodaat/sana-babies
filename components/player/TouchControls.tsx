@@ -9,6 +9,21 @@ const JOYSTICK_RADIUS = 60;
 const KNOB_RADIUS = 28;
 const CAMERA_SENSITIVITY = 0.006;
 const MOUSE_SENSITIVITY = 0.005;
+const PITCH_SENSITIVITY = 0.004;
+
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const setZoom = (z: number) => {
+  input.cameraZoom = Math.min(1.7, Math.max(0.55, z));
+};
+
+/** Atender al NPC cercano (botón, E o Enter), salvo que haya un diálogo abierto */
+function doAction() {
+  const s = useGameStore.getState();
+  if (s.currentInteraction && !s.modal) {
+    sfx.click();
+    s.triggerAction();
+  }
+}
 
 /** Chip que "salta" cuando cambia su valor */
 function PopChip({ value, children }: { value: number; children: React.ReactNode }) {
@@ -46,15 +61,18 @@ export default function TouchControls() {
   const joystickRef = useRef<HTMLDivElement>(null);
   const knobRef = useRef<HTMLDivElement>(null);
   const joystickTouchId = useRef<number | null>(null);
-  const cameraTouchId = useRef<number | null>(null);
+  const underlayRef = useRef<HTMLDivElement>(null);
+  const jumpRef = useRef<HTMLDivElement>(null);
+  const actionRef = useRef<HTMLDivElement>(null);
+  /** Dedos que están girando la cámara: id → última posición */
+  const camTouches = useRef(new Map<number, { x: number; y: number }>());
+  const pinchDist = useRef(0);
   const centerRef = useRef({ x: 0, y: 0 });
-  const lastCameraX = useRef(0);
   const mouseDragging = useRef(false);
-  const lastMouseX = useRef(0);
+  const lastMouse = useRef({ x: 0, y: 0 });
   const [toast, setToast] = useState<string | null>(null);
 
   const currentInteraction = useGameStore((s) => s.currentInteraction);
-  const triggerAction = useGameStore((s) => s.triggerAction);
   const coins = useGameStore((s) => s.coins);
   const xp = useGameStore((s) => s.xp);
   const level = useGameStore((s) => s.level);
@@ -93,48 +111,79 @@ export default function TouchControls() {
     }
   }, []);
 
-  const handleJoystickStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.changedTouches[0];
-    if (!joystickRef.current) return;
-    joystickTouchId.current = touch.identifier;
-    const rect = joystickRef.current.getBoundingClientRect();
-    centerRef.current = {
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    };
-    updateKnob(touch.clientX, touch.clientY);
-  }, [updateKnob]);
-
-  // --- Camera swipe zone ---
-  const handleCameraStart = useCallback((e: React.TouchEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const touch = e.changedTouches[0];
-    cameraTouchId.current = touch.identifier;
-    lastCameraX.current = touch.clientX;
-  }, []);
-
-  // --- Global touch + mouse handlers ---
+  // --- Entrada táctil y de mouse ---
+  // Listeners nativos con passive:false: React registra touchstart como pasivo y su
+  // preventDefault() no hace nada, así el navegador disparaba un "clic fantasma" ~300 ms
+  // después del toque, que caía sobre la tarjeta recién abierta (cerraba la charla,
+  // aceptaba misiones o elegía un tratamiento solo).
   useEffect(() => {
-    const handleTouchMove = (e: TouchEvent) => {
+    const underlay = underlayRef.current;
+    const joystick = joystickRef.current;
+    const jump = jumpRef.current;
+    const action = actionRef.current;
+    if (!underlay || !joystick || !jump || !action) return;
+
+    const pinchLen = () => {
+      const pts = [...camTouches.current.values()];
+      return pts.length >= 2 ? Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y) : 0;
+    };
+
+    const onJoyStart = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const t = e.changedTouches[0];
+      joystickTouchId.current = t.identifier;
+      const rect = joystick.getBoundingClientRect();
+      centerRef.current = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+      updateKnob(t.clientX, t.clientY);
+    };
+    const onCamStart = (e: TouchEvent) => {
+      e.preventDefault();
+      for (let i = 0; i < e.changedTouches.length; i++) {
+        const t = e.changedTouches[i];
+        camTouches.current.set(t.identifier, { x: t.clientX, y: t.clientY });
+      }
+      pinchDist.current = pinchLen();
+    };
+    const onJumpStart = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      input.jumpQueued = true;
+    };
+    const onActionStart = (e: TouchEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      doAction();
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      let camMoved = false;
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier === joystickTouchId.current) {
           e.preventDefault();
           updateKnob(t.clientX, t.clientY);
         }
-        if (t.identifier === cameraTouchId.current) {
+        const prev = camTouches.current.get(t.identifier);
+        if (prev) {
           e.preventDefault();
-          const deltaX = t.clientX - lastCameraX.current;
-          lastCameraX.current = t.clientX;
-          input.cameraAngle -= deltaX * CAMERA_SENSITIVITY;
+          if (camTouches.current.size === 1) {
+            input.cameraAngle -= (t.clientX - prev.x) * CAMERA_SENSITIVITY;
+            input.cameraPitch = clamp01(input.cameraPitch + (t.clientY - prev.y) * PITCH_SENSITIVITY);
+          }
+          camTouches.current.set(t.identifier, { x: t.clientX, y: t.clientY });
+          camMoved = true;
         }
+      }
+      // Dos dedos: pellizcar para acercar o alejar
+      if (camMoved && camTouches.current.size >= 2) {
+        const d = pinchLen();
+        if (pinchDist.current > 0 && d > 0) setZoom(input.cameraZoom * (pinchDist.current / d));
+        pinchDist.current = d;
       }
     };
 
-    const handleTouchEnd = (e: TouchEvent) => {
+    const onTouchEnd = (e: TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
         if (t.identifier === joystickTouchId.current) {
@@ -143,55 +192,69 @@ export default function TouchControls() {
           input.touch.x = 0;
           input.touch.y = 0;
         }
-        if (t.identifier === cameraTouchId.current) cameraTouchId.current = null;
+        camTouches.current.delete(t.identifier);
       }
+      pinchDist.current = pinchLen();
     };
 
-    // Escritorio: arrastrar con el mouse gira la cámara, E / Enter atiende
-    // Mouse: se calcula el delta con clientX (movementX falla en algunos trackpads/navegadores)
+    // Mouse: el delta sale de clientX/Y (movementX llega en 0 en algunos trackpads)
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 0) return;
+      mouseDragging.current = true;
+      lastMouse.current = { x: e.clientX, y: e.clientY };
+      document.body.style.cursor = 'grabbing';
+    };
     const onMouseMove = (e: MouseEvent) => {
       if (!mouseDragging.current) return;
-      const dx = e.clientX - lastMouseX.current;
-      lastMouseX.current = e.clientX;
-      input.cameraAngle -= dx * MOUSE_SENSITIVITY;
+      input.cameraAngle -= (e.clientX - lastMouse.current.x) * MOUSE_SENSITIVITY;
+      input.cameraPitch = clamp01(input.cameraPitch + (e.clientY - lastMouse.current.y) * PITCH_SENSITIVITY);
+      lastMouse.current = { x: e.clientX, y: e.clientY };
     };
     const onMouseUp = () => {
       mouseDragging.current = false;
       document.body.style.cursor = '';
     };
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      setZoom(input.cameraZoom * Math.exp(e.deltaY * 0.0012));
+    };
     const onKey = (e: KeyboardEvent) => {
-      if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
-        const s = useGameStore.getState();
-        if (s.currentInteraction && !s.modal) {
-          sfx.click();
-          s.triggerAction();
-        }
-      }
+      if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) doAction();
+      // Q / R giran la cámara con el teclado
+      if (e.code === 'KeyQ') input.cameraAngle += 0.25;
+      if (e.code === 'KeyR') input.cameraAngle -= 0.25;
     };
 
-    document.addEventListener('touchmove', handleTouchMove, { passive: false });
-    document.addEventListener('touchend', handleTouchEnd, { passive: false });
-    document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    const np = { passive: false } as const;
+    joystick.addEventListener('touchstart', onJoyStart, np);
+    underlay.addEventListener('touchstart', onCamStart, np);
+    jump.addEventListener('touchstart', onJumpStart, np);
+    action.addEventListener('touchstart', onActionStart, np);
+    underlay.addEventListener('mousedown', onMouseDown);
+    underlay.addEventListener('wheel', onWheel, np);
+    document.addEventListener('touchmove', onTouchMove, np);
+    document.addEventListener('touchend', onTouchEnd, np);
+    document.addEventListener('touchcancel', onTouchEnd, np);
     window.addEventListener('mousemove', onMouseMove);
     window.addEventListener('mouseup', onMouseUp);
     window.addEventListener('keydown', onKey);
-
     return () => {
-      document.removeEventListener('touchmove', handleTouchMove);
-      document.removeEventListener('touchend', handleTouchEnd);
-      document.removeEventListener('touchcancel', handleTouchEnd);
+      joystick.removeEventListener('touchstart', onJoyStart);
+      underlay.removeEventListener('touchstart', onCamStart);
+      jump.removeEventListener('touchstart', onJumpStart);
+      action.removeEventListener('touchstart', onActionStart);
+      underlay.removeEventListener('mousedown', onMouseDown);
+      underlay.removeEventListener('wheel', onWheel);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('touchend', onTouchEnd);
+      document.removeEventListener('touchcancel', onTouchEnd);
       window.removeEventListener('mousemove', onMouseMove);
       window.removeEventListener('mouseup', onMouseUp);
       window.removeEventListener('keydown', onKey);
     };
   }, [updateKnob]);
 
-  const handleAction = useCallback(() => {
-    if (currentInteraction) {
-      sfx.click();
-      triggerAction();
-    }
-  }, [currentInteraction, triggerAction]);
+  const handleAction = () => doAction();
 
   const toggleMute = () => {
     const next = !muted;
@@ -225,15 +288,7 @@ export default function TouchControls() {
     >
       {/* Girar la cámara: arrastrar (dedo o mouse) en cualquier parte libre de la pantalla.
           Joystick y botones están encima y no dejan pasar el toque. */}
-      <div
-        onTouchStart={handleCameraStart}
-        onMouseDown={(e) => {
-          mouseDragging.current = true;
-          lastMouseX.current = e.clientX;
-          document.body.style.cursor = 'grabbing';
-        }}
-        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none', cursor: 'grab' }}
-      />
+      <div ref={underlayRef} style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none', cursor: 'grab' }} />
 
       {/* HUD — barra superior */}
       <div
@@ -296,7 +351,6 @@ export default function TouchControls() {
       {/* Joystick — abajo a la izquierda */}
       <div
         ref={joystickRef}
-        onTouchStart={handleJoystickStart}
         style={{
           position: 'absolute',
           left: 24,
@@ -329,11 +383,7 @@ export default function TouchControls() {
 
       {/* Botón de salto */}
       <div
-        onTouchStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          input.jumpQueued = true;
-        }}
+        ref={jumpRef}
         onMouseDown={(e) => {
           e.stopPropagation();
           input.jumpQueued = true;
@@ -366,11 +416,7 @@ export default function TouchControls() {
 
       {/* Botón de acción */}
       <div
-        onTouchStart={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          handleAction();
-        }}
+        ref={actionRef}
         onMouseDown={(e) => {
           e.stopPropagation();
           handleAction();

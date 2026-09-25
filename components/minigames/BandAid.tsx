@@ -66,11 +66,13 @@ function BandAidGame({
     [bandX, bandY],
   );
 
-  // ─── Mouse events ───
-  const onMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  // ─── Arrastre (mouse y dedo con el mismo código) ───
+  const onPointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (placed) return;
       e.preventDefault();
+      e.stopPropagation();
+      containerRef.current?.setPointerCapture(e.pointerId);
       const pos = getRelativePos(e.clientX, e.clientY);
       dragOffsetRef.current = { x: pos.x - bandX, y: pos.y - bandY };
       setDragging(true);
@@ -78,8 +80,8 @@ function BandAidGame({
     [placed, getRelativePos, bandX, bandY],
   );
 
-  const onMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const onPointerMove = useCallback(
+    (e: React.PointerEvent) => {
       if (!dragging || placed) return;
       const pos = getRelativePos(e.clientX, e.clientY);
       setBandX(Math.max(0, Math.min(100, pos.x - dragOffsetRef.current.x)));
@@ -88,40 +90,7 @@ function BandAidGame({
     [dragging, placed, getRelativePos],
   );
 
-  const onMouseUp = useCallback(() => {
-    if (!dragging || placed) return;
-    setDragging(false);
-    setPlaced(true);
-    const dist = getDistance(bandX, bandY, TARGET_X, TARGET_Y);
-    setTimeout(() => onComplete(getPrecision(dist)), 400);
-  }, [dragging, placed, bandX, bandY, onComplete]);
-
-  // ─── Touch events ───
-  const onTouchStart = useCallback(
-    (e: React.TouchEvent) => {
-      if (placed) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const pos = getRelativePos(touch.clientX, touch.clientY);
-      dragOffsetRef.current = { x: pos.x - bandX, y: pos.y - bandY };
-      setDragging(true);
-    },
-    [placed, getRelativePos, bandX, bandY],
-  );
-
-  const onTouchMove = useCallback(
-    (e: React.TouchEvent) => {
-      if (!dragging || placed) return;
-      e.preventDefault();
-      const touch = e.touches[0];
-      const pos = getRelativePos(touch.clientX, touch.clientY);
-      setBandX(Math.max(0, Math.min(100, pos.x - dragOffsetRef.current.x)));
-      setBandY(Math.max(0, Math.min(100, pos.y - dragOffsetRef.current.y)));
-    },
-    [dragging, placed, getRelativePos],
-  );
-
-  const onTouchEnd = useCallback(() => {
+  const onPointerUp = useCallback(() => {
     if (!dragging || placed) return;
     setDragging(false);
     setPlaced(true);
@@ -137,11 +106,9 @@ function BandAidGame({
       ref={containerRef}
       className="relative w-full h-64 rounded-2xl overflow-hidden select-none touch-none"
       style={{ background: '#FDEBD0' }}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
-      onMouseLeave={onMouseUp}
-      onTouchMove={onTouchMove}
-      onTouchEnd={onTouchEnd}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerUp}
     >
       {/* Knee / skin area */}
       <div
@@ -198,8 +165,7 @@ function BandAidGame({
           height: 30,
           zIndex: 10,
         }}
-        onMouseDown={onMouseDown}
-        onTouchStart={onTouchStart}
+        onPointerDown={onPointerDown}
       >
         {/* Band-aid SVG */}
         <svg

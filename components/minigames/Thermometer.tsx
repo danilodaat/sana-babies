@@ -179,18 +179,15 @@ function ThermometerGame({
                 : 'bg-gradient-to-r from-sky-400 to-sky-500 text-white active:scale-95'
           }
         `}
-        onMouseDown={startHold}
-        onMouseUp={endHold}
-        onMouseLeave={() => {
-          if (holdingRef.current) endHold();
-        }}
-        onTouchStart={(e) => {
-          e.preventDefault();
+        style={{ touchAction: 'none' }}
+        onPointerDown={(e) => {
+          e.preventDefault(); // en pointerdown sí evita el clic fantasma posterior
+          e.currentTarget.setPointerCapture(e.pointerId);
           startHold();
         }}
-        onTouchEnd={(e) => {
-          e.preventDefault();
-          endHold();
+        onPointerUp={endHold}
+        onPointerCancel={() => {
+          if (holdingRef.current) endHold();
         }}
         disabled={released}
       >

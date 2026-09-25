@@ -21,6 +21,10 @@ export const input = {
   /** Se consume en Doctor: true mientras haya un salto pendiente */
   jumpQueued: false,
   cameraAngle: 0,
+  /** Inclinación de la cámara: 0 = más a ras del suelo, 1 = casi desde arriba */
+  cameraPitch: 0.5,
+  /** Distancia de la cámara: <1 más cerca, >1 más lejos */
+  cameraZoom: 1,
   /** Solo para pruebas (?debug): mueve al doctor a este punto en el próximo frame */
   teleport: null as THREE.Vector3 | null,
 };
@@ -53,5 +57,7 @@ export function resetRuntime() {
   input.touch.y = 0;
   input.jumpQueued = false;
   input.cameraAngle = 0;
+  input.cameraPitch = 0.5;
+  input.cameraZoom = 1;
   world.time = 0.34;
 }

@@ -58,7 +58,13 @@ export default function CameraFollow() {
       offset.current
         .copy(CAMERA_OFFSET)
         .lerp(INDOOR_OFFSET, indoor.current)
-        .multiplyScalar((1 + speed * 0.12) * (1 + (portrait - 1) * (1 - indoor.current * 0.6)));
+        .multiplyScalar((1 + speed * 0.12) * (1 + (portrait - 1) * (1 - indoor.current * 0.6)) * input.cameraZoom);
+      // Inclinación elegida por el jugador: sube o baja la cámara
+      const pitch = THREE.MathUtils.lerp(0.4, 1.6, input.cameraPitch);
+      offset.current.y *= pitch;
+      offset.current.z /= Math.sqrt(pitch);
+      // Dentro del hospital la cámara nunca sube por encima del techo (7 m)
+      if (indoor.current > 0.5) offset.current.y = Math.min(offset.current.y, 6.3 - player.position.y);
       offset.current.applyAxisAngle(UP, input.cameraAngle);
       desired.current.copy(player.position).add(offset.current);
       desiredLook.current

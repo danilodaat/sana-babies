@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import type { Case, Finding, TreatmentOption } from '@/lib/cases';
 import { isEmergency } from '@/lib/cases';
 import { npcName } from '@/lib/npcs';
+import { useArmed } from '@/lib/useArmed';
 
 /*
  * Tarjetas de la interfaz de casos clínicos. Todas comparten el mismo
@@ -19,6 +20,7 @@ const TYPE_BADGE: Record<Case['type'], { label: string; emoji: string; color: st
 
 function Sheet({ children, tone = 'default' }: { children: React.ReactNode; tone?: 'default' | 'alert' }) {
   const [shown, setShown] = useState(false);
+  const armed = useArmed();
   useEffect(() => {
     const r = requestAnimationFrame(() => setShown(true));
     return () => cancelAnimationFrame(r);
@@ -34,6 +36,7 @@ function Sheet({ children, tone = 'default' }: { children: React.ReactNode; tone
           transform: shown ? 'translateY(0)' : 'translateY(120px)',
           opacity: shown ? 1 : 0,
           transition: 'transform 0.45s cubic-bezier(0.2, 1.4, 0.4, 1), opacity 0.25s',
+          pointerEvents: armed ? 'auto' : 'none',
         }}
       >
         {children}

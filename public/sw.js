@@ -6,7 +6,7 @@
  *  - /_next/static: caché primero (los nombres llevan hash, nunca cambian)
  *  - Resto del mismo origen: devuelve lo guardado y actualiza en segundo plano
  */
-const VERSION = 'sb-v4';
+const VERSION = 'sb-v5';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
