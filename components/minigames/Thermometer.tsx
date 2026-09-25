@@ -100,7 +100,7 @@ function ThermometerGame({
         return current;
       });
     }, 300);
-  }, [released, onComplete]);
+  }, [released, onComplete, r]);
 
   const greenLow = tempToPercent(r.gl);
   const greenHigh = tempToPercent(r.gh);

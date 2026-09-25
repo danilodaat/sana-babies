@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { world, player, DAY_LENGTH } from '@/lib/runtime';
 import { nightMaterials } from '@/components/fx/Toonify';
@@ -124,7 +124,6 @@ function Stars() {
 }
 
 export default function DayNight() {
-  const scene = useThree((s) => s.scene);
   const quality = useGameStore((s) => s.quality);
   const started = useGameStore((s) => s.started);
 
