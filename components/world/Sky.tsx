@@ -43,32 +43,10 @@ function Cloud({ position, scale = 1 }: { position: [number, number, number]; sc
   );
 }
 
-/* ─── Sun ─── */
-function Sun() {
-  return (
-    <mesh position={[70, 80, -60]}>
-      <sphereGeometry args={[8, 16, 16]} />
-      <meshStandardMaterial
-        color="#FFE066"
-        emissive="#FFD54F"
-        emissiveIntensity={1.5}
-        toneMapped={false}
-      />
-    </mesh>
-  );
-}
-
-/* ─── Sky dome ─── */
+/* ─── Nubes (el domo del cielo, sol y luna ahora viven en DayNight) ─── */
 export function Sky() {
   return (
     <group>
-      {/* Sky sphere */}
-      <mesh>
-        <sphereGeometry args={[180, 32, 32]} />
-        <meshBasicMaterial color="#87CEEB" side={THREE.BackSide} />
-      </mesh>
-
-      <Sun />
 
       {/* Clouds scattered around */}
       <Cloud position={[-30, 40, -50]} scale={1.2} />

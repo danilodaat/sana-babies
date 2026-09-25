@@ -1,117 +1,124 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
+import { useGameStore, hasSavedProgress } from '@/store/gameStore';
+import { unlock, startMusic, setMuted, sfx } from '@/lib/audio';
+import { resetRuntime } from '@/lib/runtime';
 
 const Game = dynamic(() => import('@/components/Game'), { ssr: false });
 
-export default function Home() {
-  const [playing, setPlaying] = useState(false);
+const TITLE = 'Sana Babies';
 
-  if (playing) {
-    return <Game />;
-  }
+/*
+ * El mundo 3D se renderiza desde el principio: la pantalla de inicio es un
+ * overlay sobre la ciudad viva, con la cámara orbitando y el día pasando rápido.
+ */
+export default function Home() {
+  const started = useGameStore((s) => s.started);
+  const setStarted = useGameStore((s) => s.setStarted);
+  const resetProgress = useGameStore((s) => s.resetProgress);
+  const level = useGameStore((s) => s.level);
+  const [mounted, setMounted] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [hasSave, setHasSave] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+    setHasSave(hasSavedProgress());
+  }, []);
+
+  const play = (fresh: boolean) => {
+    unlock();
+    setMuted(useGameStore.getState().muted);
+    startMusic();
+    sfx.whoosh();
+    if (fresh) {
+      resetProgress();
+      resetRuntime();
+    }
+    setLeaving(true);
+    setTimeout(() => setStarted(true), 450);
+  };
 
   return (
-    <div
-      style={{
-        width: '100vw',
-        height: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        background: 'linear-gradient(180deg, #87CEEB 0%, #E0F7FA 60%, #A5D6A7 100%)',
-        fontFamily: 'sans-serif',
-        overflow: 'hidden',
-        position: 'relative',
-      }}
-    >
-      {/* Decorative clouds */}
-      <div
-        style={{
-          position: 'absolute',
-          top: 60,
-          left: '10%',
-          width: 120,
-          height: 50,
-          borderRadius: 50,
-          background: 'rgba(255,255,255,0.8)',
-          boxShadow: '30px -10px 0 10px rgba(255,255,255,0.8), 60px 0 0 5px rgba(255,255,255,0.7)',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          top: 120,
-          right: '15%',
-          width: 90,
-          height: 40,
-          borderRadius: 40,
-          background: 'rgba(255,255,255,0.7)',
-          boxShadow: '25px -8px 0 8px rgba(255,255,255,0.7), 50px 0 0 4px rgba(255,255,255,0.6)',
-        }}
-      />
+    <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}>
+      <Game />
 
-      {/* Title */}
-      <h1
-        style={{
-          fontSize: 72,
-          fontWeight: 900,
-          color: '#FF6B9D',
-          textShadow: '3px 3px 0 #FF9CC2, 6px 6px 0 rgba(0,0,0,0.1)',
-          marginBottom: 8,
-          letterSpacing: -2,
-        }}
-      >
-        Sana Babies
-      </h1>
+      {!started && (
+        <div
+          className={leaving ? 'sb-fade-out' : undefined}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            zIndex: 40,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            background: 'radial-gradient(ellipse at center, rgba(255,255,255,0.05) 0%, rgba(40,20,70,0.35) 100%)',
+            padding: 16,
+            textAlign: 'center',
+          }}
+        >
+          <h1 className="sb-title" aria-label={TITLE}>
+            {TITLE.split('').map((ch, i) => (
+              <span key={i} style={{ animationDelay: `${i * 0.09}s`, width: ch === ' ' ? '0.3em' : undefined }}>
+                {ch}
+              </span>
+            ))}
+          </h1>
 
-      <p
-        style={{
-          fontSize: 22,
-          color: '#5D4E7A',
-          marginBottom: 48,
-          fontWeight: 600,
-        }}
-      >
-        Cuidando al mundo, un pasito a la vez
-      </p>
+          <p
+            style={{
+              fontSize: 20,
+              color: '#fff',
+              fontWeight: 700,
+              margin: '0 0 28px',
+              textShadow: '0 2px 8px rgba(40,20,70,0.6)',
+            }}
+          >
+            Cuidando al mundo, un pasito a la vez
+          </p>
 
-      {/* Play button */}
-      <button
-        onClick={() => setPlaying(true)}
-        style={{
-          padding: '18px 64px',
-          fontSize: 28,
-          fontWeight: 800,
-          color: '#fff',
-          background: 'linear-gradient(135deg, #FF6B9D 0%, #FF8E53 100%)',
-          border: 'none',
-          borderRadius: 50,
-          cursor: 'pointer',
-          boxShadow: '0 8px 25px rgba(255,107,157,0.4), 0 4px 0 #E05580',
-          transform: 'translateY(0)',
-          transition: 'all 0.15s ease',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.transform = 'translateY(-3px)';
-          e.currentTarget.style.boxShadow =
-            '0 12px 30px rgba(255,107,157,0.5), 0 6px 0 #E05580';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.transform = 'translateY(0)';
-          e.currentTarget.style.boxShadow =
-            '0 8px 25px rgba(255,107,157,0.4), 0 4px 0 #E05580';
-        }}
-      >
-        Jugar
-      </button>
+          {mounted && (
+            <>
+              <button className="sb-btn sb-btn-primary" onClick={() => play(false)}>
+                {hasSave ? 'Continuar' : 'Jugar'}
+              </button>
+              {hasSave && (
+                <>
+                  <div style={{ color: '#fff', fontWeight: 700, fontSize: 14, textShadow: '0 1px 4px rgba(0,0,0,0.5)' }}>
+                    Doctor nivel {level}
+                  </div>
+                  <button
+                    className="sb-btn sb-btn-ghost"
+                    onClick={() => {
+                      if (window.confirm('¿Empezar de cero? Se borrará tu progreso.')) play(true);
+                    }}
+                  >
+                    Nueva partida
+                  </button>
+                </>
+              )}
+            </>
+          )}
 
-      {/* Small hearts decoration */}
-      <div style={{ position: 'absolute', bottom: 40, fontSize: 32, opacity: 0.4 }}>
-        &#10084; &#10084; &#10084;
-      </div>
+          <div
+            style={{
+              position: 'absolute',
+              bottom: 'max(env(safe-area-inset-bottom), 20px)',
+              color: 'rgba(255,255,255,0.85)',
+              fontSize: 13,
+              fontWeight: 600,
+              textShadow: '0 1px 4px rgba(0,0,0,0.5)',
+            }}
+          >
+            🔊 Con sonido · Joystick para caminar · Botón azul para atender
+          </div>
+        </div>
+      )}
     </div>
   );
 }

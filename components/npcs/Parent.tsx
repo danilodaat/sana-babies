@@ -1,11 +1,13 @@
 'use client';
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
+import { player } from '@/lib/runtime';
+import { useNpc, useMarker, MissionMarker } from './useNpc';
 
 interface ParentProps {
   id: string;
@@ -16,7 +18,6 @@ interface ParentProps {
   dialogue?: string;
 }
 
-const INTERACTION_DISTANCE = 2.5;
 const IDLE_SWAY_SPEED = 1.5;
 const IDLE_SWAY_AMOUNT = 0.015;
 
@@ -29,11 +30,12 @@ export default function Parent({
   dialogue = 'Doctor, necesito su ayuda...',
 }: ParentProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [isNear, setIsNear] = useState(false);
   const idlePhase = useRef(Math.random() * Math.PI * 2);
 
-  const { playerPosition, interact, currentInteraction, showMissionDialog } =
-    useGameStore();
+  const showMissionDialog = useGameStore((s) => s.showMissionDialog);
+  const currentInteraction = useGameStore((s) => s.currentInteraction);
+  const { isNear, cheerRef } = useNpc(id, position);
+  const marker = useMarker(id);
 
   const isMother = variant === 'mother';
 
@@ -98,21 +100,9 @@ export default function Parent({
     groupRef.current.rotation.z =
       Math.sin(idlePhase.current) * IDLE_SWAY_AMOUNT;
 
-    // Check distance to player
-    const [px, , pz] = playerPosition;
-    const dx = px - position[0];
-    const dz = pz - position[2];
-    const dist = Math.sqrt(dx * dx + dz * dz);
-
-    const near = dist < INTERACTION_DISTANCE;
-    if (near !== isNear) {
-      setIsNear(near);
-      if (near) {
-        interact(id);
-      } else if (currentInteraction === id) {
-        interact(null);
-      }
-    }
+    const dx = player.position.x - position[0];
+    const dz = player.position.z - position[2];
+    const near = isNear;
 
     // Face the player when nearby
     if (near) {
@@ -129,7 +119,9 @@ export default function Parent({
     <RigidBody type="fixed" position={position} colliders={false}>
       <CapsuleCollider args={[0.4, 0.18]} position={[0, 0.6, 0]} sensor />
 
-      <group ref={groupRef}>
+      <group ref={cheerRef}>
+      {marker && <MissionMarker kind={marker} height={1.95} />}
+      <group ref={groupRef} userData={{ outline: 0.012 }}>
         {/* === HEAD === */}
         <group position={[0, 1.25, 0]}>
           <mesh geometry={geometries.head} material={materials.skin} />
@@ -251,7 +243,7 @@ export default function Parent({
         </group>
 
         {/* === INTERACTION ICON === */}
-        {isNear && !showMissionDialog && (
+        {isNear && !showMissionDialog && !marker && (
           <Html
             position={[0, 1.65, 0]}
             center
@@ -324,6 +316,7 @@ export default function Parent({
             </div>
           </Html>
         )}
+      </group>
       </group>
     </RigidBody>
   );

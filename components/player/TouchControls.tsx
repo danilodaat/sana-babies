@@ -1,7 +1,46 @@
 'use client';
 
-import { useRef, useCallback, useEffect } from 'react';
-import { useGameStore } from '@/store/gameStore';
+import { useRef, useCallback, useEffect, useState } from 'react';
+import { useGameStore, xpForLevelStart } from '@/store/gameStore';
+import { input, world } from '@/lib/runtime';
+import { setMuted as setAudioMuted, sfx } from '@/lib/audio';
+
+const JOYSTICK_RADIUS = 60;
+const KNOB_RADIUS = 28;
+const CAMERA_SENSITIVITY = 0.006;
+const MOUSE_SENSITIVITY = 0.005;
+
+/** Chip que "salta" cuando cambia su valor */
+function PopChip({ value, children }: { value: number; children: React.ReactNode }) {
+  const [pop, setPop] = useState(0);
+  const prev = useRef(value);
+  useEffect(() => {
+    if (value > prev.current) setPop((p) => p + 1);
+    prev.current = value;
+  }, [value]);
+  return (
+    <div key={pop} className={`sb-chip${pop ? ' sb-pop' : ''}`}>
+      {children}
+    </div>
+  );
+}
+
+/** Reloj del día: sol/luna y hora del juego, se actualiza 2 veces por segundo */
+function DayClock() {
+  const [t, setT] = useState(world.time);
+  useEffect(() => {
+    const id = setInterval(() => setT(world.time), 500);
+    return () => clearInterval(id);
+  }, []);
+  const hours = Math.floor(t * 24);
+  const mins = Math.floor((t * 24 * 60) % 60 / 10) * 10;
+  const isNight = t < 0.23 || t > 0.79;
+  return (
+    <div className="sb-chip" style={{ fontSize: 13 }}>
+      {isNight ? '🌙' : t < 0.3 || t > 0.72 ? '🌅' : '☀️'} {String(hours).padStart(2, '0')}:{String(mins).padStart(2, '0')}
+    </div>
+  );
+}
 
 export default function TouchControls() {
   const joystickRef = useRef<HTMLDivElement>(null);
@@ -10,32 +49,31 @@ export default function TouchControls() {
   const cameraTouchId = useRef<number | null>(null);
   const centerRef = useRef({ x: 0, y: 0 });
   const lastCameraX = useRef(0);
+  const mouseDragging = useRef(false);
+  const [toast, setToast] = useState<string | null>(null);
 
-  const {
-    setMoveDirection,
-    setCameraAngle,
-    cameraAngle,
-    currentInteraction,
-    triggerAction,
-    coins,
-    xp,
-    level,
-  } = useGameStore();
+  const currentInteraction = useGameStore((s) => s.currentInteraction);
+  const triggerAction = useGameStore((s) => s.triggerAction);
+  const coins = useGameStore((s) => s.coins);
+  const xp = useGameStore((s) => s.xp);
+  const level = useGameStore((s) => s.level);
+  const muted = useGameStore((s) => s.muted);
+  const setMuted = useGameStore((s) => s.setMuted);
+  const quality = useGameStore((s) => s.quality);
+  const setQuality = useGameStore((s) => s.setQuality);
+  const busy = useGameStore((s) => s.activeMiniGame !== null || s.showMissionDialog || s.dialogMode !== null);
 
-  const cameraAngleRef = useRef(cameraAngle);
-  cameraAngleRef.current = cameraAngle;
-
-  const JOYSTICK_RADIUS = 60;
-  const KNOB_RADIUS = 28;
-  const CAMERA_SENSITIVITY = 0.006;
+  const showToast = (msg: string) => {
+    setToast(msg);
+    setTimeout(() => setToast(null), 1500);
+  };
 
   // --- Joystick logic ---
   const updateKnob = useCallback((touchX: number, touchY: number) => {
     const dx = touchX - centerRef.current.x;
     const dy = touchY - centerRef.current.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
-    const maxDist = JOYSTICK_RADIUS;
-    const clampedDist = Math.min(dist, maxDist);
+    const clampedDist = Math.min(dist, JOYSTICK_RADIUS);
     const angle = Math.atan2(dy, dx);
     const clampedX = Math.cos(angle) * clampedDist;
     const clampedY = Math.sin(angle) * clampedDist;
@@ -44,21 +82,20 @@ export default function TouchControls() {
       knobRef.current.style.transform = `translate(${clampedX}px, ${clampedY}px)`;
     }
 
-    const normalX = clampedX / maxDist;
-    const normalY = clampedY / maxDist;
-    const force = Math.min(dist / maxDist, 1);
-
+    const force = Math.min(dist / JOYSTICK_RADIUS, 1);
     if (force > 0.1) {
-      setMoveDirection({ x: normalX * force, y: normalY * force });
+      input.touch.x = (clampedX / JOYSTICK_RADIUS) * force;
+      input.touch.y = (clampedY / JOYSTICK_RADIUS) * force;
     } else {
-      setMoveDirection({ x: 0, y: 0 });
+      input.touch.x = 0;
+      input.touch.y = 0;
     }
-  }, [setMoveDirection]);
+  }, []);
 
   const handleJoystickStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const touch = e.touches[e.touches.length - 1];
+    const touch = e.changedTouches[0];
     if (!joystickRef.current) return;
     joystickTouchId.current = touch.identifier;
     const rect = joystickRef.current.getBoundingClientRect();
@@ -69,7 +106,7 @@ export default function TouchControls() {
     updateKnob(touch.clientX, touch.clientY);
   }, [updateKnob]);
 
-  // --- Camera swipe zone: anywhere on the right half ---
+  // --- Camera swipe zone ---
   const handleCameraStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault();
     e.stopPropagation();
@@ -78,22 +115,20 @@ export default function TouchControls() {
     lastCameraX.current = touch.clientX;
   }, []);
 
-  // --- Global touch handlers ---
+  // --- Global touch + mouse handlers ---
   useEffect(() => {
     const handleTouchMove = (e: TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
-
         if (t.identifier === joystickTouchId.current) {
           e.preventDefault();
           updateKnob(t.clientX, t.clientY);
         }
-
         if (t.identifier === cameraTouchId.current) {
           e.preventDefault();
           const deltaX = t.clientX - lastCameraX.current;
           lastCameraX.current = t.clientX;
-          setCameraAngle(cameraAngleRef.current - deltaX * CAMERA_SENSITIVITY);
+          input.cameraAngle -= deltaX * CAMERA_SENSITIVITY;
         }
       }
     };
@@ -101,17 +136,29 @@ export default function TouchControls() {
     const handleTouchEnd = (e: TouchEvent) => {
       for (let i = 0; i < e.changedTouches.length; i++) {
         const t = e.changedTouches[i];
-
         if (t.identifier === joystickTouchId.current) {
           joystickTouchId.current = null;
-          if (knobRef.current) {
-            knobRef.current.style.transform = 'translate(0px, 0px)';
-          }
-          setMoveDirection({ x: 0, y: 0 });
+          if (knobRef.current) knobRef.current.style.transform = 'translate(0px, 0px)';
+          input.touch.x = 0;
+          input.touch.y = 0;
         }
+        if (t.identifier === cameraTouchId.current) cameraTouchId.current = null;
+      }
+    };
 
-        if (t.identifier === cameraTouchId.current) {
-          cameraTouchId.current = null;
+    // Escritorio: arrastrar con el mouse gira la cámara, E / Enter atiende
+    const onMouseMove = (e: MouseEvent) => {
+      if (mouseDragging.current) input.cameraAngle -= e.movementX * MOUSE_SENSITIVITY;
+    };
+    const onMouseUp = () => {
+      mouseDragging.current = false;
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
+        const s = useGameStore.getState();
+        if (s.currentInteraction && !s.showMissionDialog && !s.activeMiniGame && !s.dialogMode) {
+          sfx.click();
+          s.triggerAction();
         }
       }
     };
@@ -119,21 +166,44 @@ export default function TouchControls() {
     document.addEventListener('touchmove', handleTouchMove, { passive: false });
     document.addEventListener('touchend', handleTouchEnd, { passive: false });
     document.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    window.addEventListener('keydown', onKey);
 
     return () => {
       document.removeEventListener('touchmove', handleTouchMove);
       document.removeEventListener('touchend', handleTouchEnd);
       document.removeEventListener('touchcancel', handleTouchEnd);
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+      window.removeEventListener('keydown', onKey);
     };
-  }, [setMoveDirection, setCameraAngle, updateKnob]);
+  }, [updateKnob]);
 
   const handleAction = useCallback(() => {
     if (currentInteraction) {
+      sfx.click();
       triggerAction();
     }
   }, [currentInteraction, triggerAction]);
 
-  const actionEnabled = !!currentInteraction;
+  const toggleMute = () => {
+    const next = !muted;
+    setMuted(next);
+    setAudioMuted(next);
+    if (!next) sfx.click();
+  };
+
+  const toggleQuality = () => {
+    const next = quality === 'alto' ? 'bajo' : 'alto';
+    setQuality(next);
+    sfx.click();
+    showToast(next === 'alto' ? '✨ Gráficos: alto' : '🔋 Gráficos: ahorro');
+  };
+
+  const actionEnabled = !!currentInteraction && !busy;
+  const xpInto = xp - xpForLevelStart(level);
+  const xpPercent = Math.min(100, (xpInto / (level * 100)) * 100);
 
   return (
     <div
@@ -147,74 +217,73 @@ export default function TouchControls() {
         WebkitUserSelect: 'none',
       }}
     >
-      {/* HUD — top bar */}
+      {/* Arrastre con mouse (escritorio) en toda la pantalla, por debajo del resto */}
+      <div
+        onMouseDown={() => {
+          mouseDragging.current = true;
+        }}
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'grab' }}
+      />
+
+      {/* HUD — barra superior */}
       <div
         style={{
           position: 'absolute',
           top: 0,
           left: 0,
           right: 0,
-          padding: 'max(env(safe-area-inset-top, 8px), 8px) 16px 8px',
+          padding: 'max(env(safe-area-inset-top), 10px) 12px 8px',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          background: 'linear-gradient(to bottom, rgba(0,0,0,0.45), transparent)',
+          gap: 8,
+          background: 'linear-gradient(to bottom, rgba(30,20,50,0.35), transparent)',
         }}
       >
-        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <div
-            style={{
-              background: 'rgba(255,255,255,0.2)',
-              borderRadius: 20,
-              padding: '6px 14px',
-              color: '#fff',
-              fontSize: 15,
-              fontWeight: 800,
-              fontFamily: 'system-ui, sans-serif',
-            }}
-          >
-            Nv. {level}
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4,
-              color: '#ffd54f',
-              fontSize: 16,
-              fontWeight: 800,
-              fontFamily: 'system-ui, sans-serif',
-              textShadow: '0 1px 3px rgba(0,0,0,0.5)',
-            }}
-          >
-            🪙 {coins}
-          </div>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ color: '#fff', fontSize: 12, fontWeight: 700, fontFamily: 'system-ui, sans-serif' }}>XP</span>
-          <div
-            style={{
-              width: 90,
-              height: 10,
-              borderRadius: 5,
-              background: 'rgba(255,255,255,0.25)',
-              overflow: 'hidden',
-              border: '1px solid rgba(255,255,255,0.3)',
-            }}
-          >
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <PopChip value={level}>
+            <span style={{ color: '#ffd54f' }}>★</span> Nv. {level}
+          </PopChip>
+          <PopChip value={coins}>
+            <span>🪙</span> <span style={{ color: '#ffe082' }}>{coins}</span>
+          </PopChip>
+          <div className="sb-chip" style={{ padding: '6px 10px' }}>
+            <span style={{ fontSize: 11 }}>XP</span>
             <div
               style={{
-                width: `${Math.max(5, (xp % (level * 100)) / (level * 100) * 100)}%`,
-                height: '100%',
-                background: 'linear-gradient(90deg, #66bb6a, #43a047)',
+                width: 70,
+                height: 9,
                 borderRadius: 5,
+                background: 'rgba(255,255,255,0.25)',
+                overflow: 'hidden',
               }}
-            />
+            >
+              <div
+                style={{
+                  width: `${Math.max(4, xpPercent)}%`,
+                  height: '100%',
+                  background: 'linear-gradient(90deg, #7ee081, #43c06a)',
+                  borderRadius: 5,
+                  transition: 'width 0.6s cubic-bezier(0.2, 1.4, 0.4, 1)',
+                }}
+              />
+            </div>
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <DayClock />
+          <button className="sb-icon-btn" onClick={toggleMute} onTouchEnd={(e) => { e.preventDefault(); toggleMute(); }} aria-label="Sonido">
+            {muted ? '🔇' : '🔊'}
+          </button>
+          <button className="sb-icon-btn" onClick={toggleQuality} onTouchEnd={(e) => { e.preventDefault(); toggleQuality(); }} aria-label="Calidad gráfica">
+            {quality === 'alto' ? '✨' : '🔋'}
+          </button>
         </div>
       </div>
 
-      {/* Camera swipe zone — right half of screen */}
+      {toast && <div className="sb-toast">{toast}</div>}
+
+      {/* Zona de swipe para la cámara — mitad derecha */}
       <div
         onTouchStart={handleCameraStart}
         style={{
@@ -222,25 +291,25 @@ export default function TouchControls() {
           top: 60,
           right: 0,
           width: '55%',
-          bottom: 150,
+          bottom: 190,
           pointerEvents: 'auto',
           touchAction: 'none',
         }}
       />
 
-      {/* Joystick — bottom left */}
+      {/* Joystick — abajo a la izquierda */}
       <div
         ref={joystickRef}
         onTouchStart={handleJoystickStart}
         style={{
           position: 'absolute',
           left: 24,
-          bottom: 'max(env(safe-area-inset-bottom, 20px), 24px)',
+          bottom: 'max(env(safe-area-inset-bottom), 24px)',
           width: JOYSTICK_RADIUS * 2 + 20,
           height: JOYSTICK_RADIUS * 2 + 20,
           borderRadius: '50%',
           background: 'rgba(255,255,255,0.15)',
-          border: '2px solid rgba(255,255,255,0.3)',
+          border: '2px solid rgba(255,255,255,0.35)',
           pointerEvents: 'auto',
           touchAction: 'none',
           display: 'flex',
@@ -254,34 +323,75 @@ export default function TouchControls() {
             width: KNOB_RADIUS * 2,
             height: KNOB_RADIUS * 2,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(255,255,255,0.7) 0%, rgba(255,255,255,0.3) 100%)',
-            border: '2px solid rgba(255,255,255,0.6)',
+            background: 'radial-gradient(circle, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.35) 100%)',
+            border: '2px solid rgba(255,255,255,0.7)',
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
             willChange: 'transform',
           }}
         />
       </div>
 
-      {/* Action button — bottom right */}
+      {/* Botón de salto */}
+      <div
+        onTouchStart={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          input.jumpQueued = true;
+        }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          input.jumpQueued = true;
+        }}
+        style={{
+          position: 'absolute',
+          right: 124,
+          bottom: 'max(env(safe-area-inset-bottom), 24px)',
+          width: 64,
+          height: 64,
+          borderRadius: '50%',
+          border: '3px solid rgba(255,255,255,0.8)',
+          background: 'radial-gradient(circle, #ffd76a 0%, #ff9f1c 100%)',
+          boxShadow: '0 4px 0 #d17a00, 0 6px 16px rgba(0,0,0,0.25)',
+          pointerEvents: 'auto',
+          touchAction: 'manipulation',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: 26,
+          fontWeight: 900,
+          textShadow: '0 2px 0 rgba(0,0,0,0.2)',
+          cursor: 'pointer',
+        }}
+        aria-label="Saltar"
+      >
+        ⤒
+      </div>
+
+      {/* Botón de acción */}
       <div
         onTouchStart={(e) => {
           e.preventDefault();
           e.stopPropagation();
           handleAction();
         }}
+        onMouseDown={(e) => {
+          e.stopPropagation();
+          handleAction();
+        }}
         style={{
           position: 'absolute',
           right: 24,
-          bottom: 'max(env(safe-area-inset-bottom, 20px), 44px)',
+          bottom: 'max(env(safe-area-inset-bottom), 44px)',
           width: 90,
           height: 90,
           borderRadius: '50%',
-          border: '3px solid rgba(255,255,255,0.8)',
+          border: '3px solid rgba(255,255,255,0.85)',
           background: actionEnabled
             ? 'radial-gradient(circle, #4fc3f7 0%, #0288d1 100%)'
             : 'radial-gradient(circle, rgba(150,150,150,0.4) 0%, rgba(80,80,80,0.4) 100%)',
           color: '#fff',
-          fontSize: 28,
+          fontSize: 30,
           cursor: 'pointer',
           pointerEvents: 'auto',
           touchAction: 'manipulation',
@@ -289,11 +399,12 @@ export default function TouchControls() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          boxShadow: actionEnabled
-            ? '0 0 24px rgba(79,195,247,0.6)'
-            : '0 4px 12px rgba(0,0,0,0.3)',
-          opacity: actionEnabled ? 1 : 0.4,
+          boxShadow: actionEnabled ? '0 0 0 0 rgba(79,195,247,0.7), 0 0 28px rgba(79,195,247,0.7)' : '0 4px 12px rgba(0,0,0,0.3)',
+          opacity: actionEnabled ? 1 : 0.45,
+          transform: actionEnabled ? 'scale(1.06)' : 'scale(1)',
+          transition: 'transform 0.2s cubic-bezier(0.2, 1.8, 0.4, 1), opacity 0.2s',
         }}
+        aria-label="Atender"
       >
         {actionEnabled ? '❤️‍🩹' : '👋'}
       </div>

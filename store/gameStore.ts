@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
 
 export interface Mission {
   id: string;
@@ -10,129 +11,209 @@ export interface Mission {
   completed: boolean;
 }
 
-interface GameState {
-  // Player movement
-  playerPosition: [number, number, number];
-  moveDirection: { x: number; y: number };
-  isMoving: boolean;
+export type Quality = 'alto' | 'bajo';
 
-  // Interaction
+/*
+ * Ojo: la posición del jugador, el joystick y el ángulo de cámara NO viven aquí.
+ * Cambian cada frame y están en lib/runtime.ts para no re-renderizar React.
+ */
+interface GameState {
+  // Flujo general
+  started: boolean;
+
+  // Interacción
   currentInteraction: string | null;
   showMissionDialog: boolean;
   currentMission: Mission | null;
 
-  // GameFlow state
   activeMiniGame: string | null;
   dialogMode: 'offer' | 'complete' | 'chat' | null;
-  actionTriggered: number; // increments on each action press
+  actionTriggered: number; // se incrementa en cada pulsación de acción
 
-  // Missions
+  // Misiones
   missions: Mission[];
+  acceptedMissions: string[];
   completedMissions: string[];
 
-  // Progression
+  // Progresión
   coins: number;
   xp: number;
   level: number;
+  /** Nivel recién alcanzado, para la celebración. null = nada que mostrar */
+  levelUp: number | null;
 
-  // Camera
-  cameraAngle: number;
+  // Ajustes
+  muted: boolean;
+  quality: Quality;
 
-  // Actions
-  setPlayerPosition: (pos: [number, number, number]) => void;
-  setMoveDirection: (dir: { x: number; y: number }) => void;
-  setIsMoving: (moving: boolean) => void;
-  setCameraAngle: (angle: number) => void;
+  // Acciones
+  setStarted: (started: boolean) => void;
   interact: (npcId: string | null) => void;
   setShowMissionDialog: (show: boolean) => void;
   setCurrentMission: (mission: Mission | null) => void;
+  acceptMission: (missionId: string) => void;
   completeMission: (missionId: string) => void;
   addCoins: (amount: number) => void;
   addXP: (amount: number) => void;
+  clearLevelUp: () => void;
   addMission: (mission: Mission) => void;
   setActiveMiniGame: (game: string | null) => void;
   setDialogMode: (mode: 'offer' | 'complete' | 'chat' | null) => void;
   triggerAction: () => void;
+  setMuted: (muted: boolean) => void;
+  setQuality: (quality: Quality) => void;
+  resetProgress: () => void;
+}
+
+/** XP total acumulado necesario para llegar a `level` */
+export function xpForLevelStart(level: number): number {
+  let total = 0;
+  for (let i = 1; i < level; i++) total += i * 100;
+  return total;
 }
 
 function calculateLevel(xp: number): number {
-  // XP curve: level N requires N*100 XP total
-  let totalXp = 0;
+  // Curva: pasar del nivel N al N+1 cuesta N*100 XP
   let level = 1;
-  while (totalXp + level * 100 <= xp) {
-    totalXp += level * 100;
-    level++;
-  }
+  while (xpForLevelStart(level + 1) <= xp) level++;
   return level;
 }
 
-export const useGameStore = create<GameState>((set) => ({
-  // Initial state
-  playerPosition: [0, 1, 0],
-  moveDirection: { x: 0, y: 0 },
-  isMoving: false,
+function defaultQuality(): Quality {
+  if (typeof window === 'undefined') return 'alto';
+  const coarse = window.matchMedia?.('(pointer: coarse)').matches;
+  const cores = navigator.hardwareConcurrency ?? 4;
+  return coarse && cores <= 4 ? 'bajo' : 'alto';
+}
 
-  currentInteraction: null,
-  showMissionDialog: false,
-  currentMission: null,
+// localStorage puede no existir o lanzar (modo privado, SSR): nunca debe romper el juego
+const safeStorage: StateStorage = {
+  getItem: (name) => {
+    try {
+      return window.localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name, value) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch {
+      /* sin guardado, se sigue jugando */
+    }
+  },
+  removeItem: (name) => {
+    try {
+      window.localStorage.removeItem(name);
+    } catch {
+      /* ignorar */
+    }
+  },
+};
 
-  activeMiniGame: null,
-  dialogMode: null,
-  actionTriggered: 0,
-
-  missions: [],
-  completedMissions: [],
-
+const initialProgress = {
+  acceptedMissions: [] as string[],
+  completedMissions: [] as string[],
   coins: 0,
   xp: 0,
   level: 1,
+};
 
-  cameraAngle: 0,
+export const useGameStore = create<GameState>()(
+  persist(
+    (set) => ({
+      started: false,
 
-  // Actions
-  setPlayerPosition: (pos) => set({ playerPosition: pos }),
-
-  setMoveDirection: (dir) =>
-    set({
-      moveDirection: dir,
-      isMoving: Math.abs(dir.x) > 0.01 || Math.abs(dir.y) > 0.01,
-    }),
-
-  setIsMoving: (moving) => set({ isMoving: moving }),
-
-  setCameraAngle: (angle) => set({ cameraAngle: angle }),
-
-  interact: (npcId) => set({ currentInteraction: npcId }),
-
-  setShowMissionDialog: (show) => set({ showMissionDialog: show }),
-
-  setCurrentMission: (mission) =>
-    set({ currentMission: mission, showMissionDialog: mission !== null }),
-
-  completeMission: (missionId) =>
-    set((state) => ({
-      missions: state.missions.filter((m) => m.id !== missionId),
-      completedMissions: [...state.completedMissions, missionId],
+      currentInteraction: null,
       showMissionDialog: false,
       currentMission: null,
-    })),
 
-  addCoins: (amount) =>
-    set((state) => ({ coins: state.coins + amount })),
+      activeMiniGame: null,
+      dialogMode: null,
+      actionTriggered: 0,
 
-  addXP: (amount) =>
-    set((state) => {
-      const newXP = state.xp + amount;
-      return { xp: newXP, level: calculateLevel(newXP) };
+      missions: [],
+      ...initialProgress,
+      levelUp: null,
+
+      muted: false,
+      quality: defaultQuality(),
+
+      setStarted: (started) => set({ started }),
+
+      interact: (npcId) => set({ currentInteraction: npcId }),
+
+      setShowMissionDialog: (show) => set({ showMissionDialog: show }),
+
+      setCurrentMission: (mission) =>
+        set({ currentMission: mission, showMissionDialog: mission !== null }),
+
+      acceptMission: (missionId) =>
+        set((state) =>
+          state.acceptedMissions.includes(missionId)
+            ? {}
+            : { acceptedMissions: [...state.acceptedMissions, missionId] },
+        ),
+
+      completeMission: (missionId) =>
+        set((state) => ({
+          missions: state.missions.filter((m) => m.id !== missionId),
+          acceptedMissions: state.acceptedMissions.filter((id) => id !== missionId),
+          completedMissions: state.completedMissions.includes(missionId)
+            ? state.completedMissions
+            : [...state.completedMissions, missionId],
+          showMissionDialog: false,
+          currentMission: null,
+        })),
+
+      addCoins: (amount) => set((state) => ({ coins: state.coins + amount })),
+
+      addXP: (amount) =>
+        set((state) => {
+          const newXP = state.xp + amount;
+          const newLevel = calculateLevel(newXP);
+          return {
+            xp: newXP,
+            level: newLevel,
+            levelUp: newLevel > state.level ? newLevel : state.levelUp,
+          };
+        }),
+
+      clearLevelUp: () => set({ levelUp: null }),
+
+      addMission: (mission) => set((state) => ({ missions: [...state.missions, mission] })),
+
+      setActiveMiniGame: (game) => set({ activeMiniGame: game }),
+
+      setDialogMode: (mode) => set({ dialogMode: mode }),
+
+      triggerAction: () => set((state) => ({ actionTriggered: state.actionTriggered + 1 })),
+
+      setMuted: (muted) => set({ muted }),
+
+      setQuality: (quality) => set({ quality }),
+
+      resetProgress: () => set({ ...initialProgress, levelUp: null }),
     }),
+    {
+      name: 'sana-babies-save',
+      version: 1,
+      storage: createJSONStorage(() => safeStorage),
+      partialize: (s) => ({
+        acceptedMissions: s.acceptedMissions,
+        completedMissions: s.completedMissions,
+        coins: s.coins,
+        xp: s.xp,
+        level: s.level,
+        muted: s.muted,
+        quality: s.quality,
+      }),
+    },
+  ),
+);
 
-  addMission: (mission) =>
-    set((state) => ({ missions: [...state.missions, mission] })),
-
-  setActiveMiniGame: (game) => set({ activeMiniGame: game }),
-
-  setDialogMode: (mode) => set({ dialogMode: mode }),
-
-  triggerAction: () =>
-    set((state) => ({ actionTriggered: state.actionTriggered + 1 })),
-}));
+/** true si hay una partida guardada con algo de progreso */
+export function hasSavedProgress(): boolean {
+  const s = useGameStore.getState();
+  return s.xp > 0 || s.coins > 0 || s.completedMissions.length > 0 || s.acceptedMissions.length > 0;
+}

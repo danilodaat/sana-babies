@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { sfx } from '@/lib/audio';
 
 export interface MiniGameResult {
   stars: 1 | 2 | 3;
@@ -52,6 +53,7 @@ export default function MiniGame({
     startTime.current = Date.now();
     intervalRef.current = setInterval(() => {
       setTimeLeft((prev) => {
+        if (prev <= 6 && prev > 1) sfx.tick();
         if (prev <= 1) {
           clearInterval(intervalRef.current);
           // Time's up — auto-complete with 0 precision
@@ -80,6 +82,8 @@ export default function MiniGame({
         precision,
       };
       setResult(res);
+      // Estrellas una por una, con su campanita
+      for (let i = 0; i < stars; i++) setTimeout(() => sfx.star(i), 250 + i * 280);
 
       // Give time to see result, then callback
       setTimeout(() => onFinish(res), 1800);
@@ -140,14 +144,18 @@ export default function MiniGame({
           {!finished ? (
             children({ timeLeft, onComplete: handleComplete })
           ) : result ? (
-            <div className="flex flex-col items-center gap-3 animate-bounce">
+            <div className="flex flex-col items-center gap-3">
               <div className="flex gap-1">
                 {[1, 2, 3].map((s) => (
                   <span
                     key={s}
-                    className={`text-4xl transition-opacity duration-300 ${
-                      s <= result.stars ? 'opacity-100' : 'opacity-20'
-                    }`}
+                    className="text-5xl"
+                    style={{
+                      display: 'inline-block',
+                      opacity: s <= result.stars ? 1 : 0.2,
+                      animation: s <= result.stars ? `sb-pop 0.5s cubic-bezier(0.2, 1.8, 0.4, 1) ${0.25 + (s - 1) * 0.28}s both` : undefined,
+                      filter: s <= result.stars ? 'drop-shadow(0 3px 0 #e0a800)' : 'grayscale(1)',
+                    }}
                   >
                     ⭐
                   </span>

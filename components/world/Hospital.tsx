@@ -208,6 +208,7 @@ export function Hospital() {
               color="#B3E5FC"
               emissive="#B3E5FC"
               emissiveIntensity={0.15}
+              userData={{ night: 'window' }}
               transparent
               opacity={0.7}
             />

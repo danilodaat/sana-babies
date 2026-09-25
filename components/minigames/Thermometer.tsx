@@ -70,12 +70,14 @@ function ThermometerGame({
     if (released) return;
     holdingRef.current = true;
 
+    // Velocidad por tiempo real (48%/s), no por frame: igual en 60 Hz y 120 Hz
+    let last = performance.now();
     const tick = () => {
       if (!holdingRef.current) return;
-      setMercuryPct((prev) => {
-        const next = Math.min(prev + 0.8, 100);
-        return next;
-      });
+      const now = performance.now();
+      const dt = Math.min(now - last, 100);
+      last = now;
+      setMercuryPct((prev) => Math.min(prev + dt * 0.048, 100));
       animRef.current = requestAnimationFrame(tick);
     };
     animRef.current = requestAnimationFrame(tick);

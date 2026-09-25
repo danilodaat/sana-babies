@@ -1,11 +1,11 @@
 'use client';
 
-import { useRef, useMemo, useState } from 'react';
+import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { RigidBody, CapsuleCollider } from '@react-three/rapier';
 import { Html } from '@react-three/drei';
 import * as THREE from 'three';
-import { useGameStore } from '@/store/gameStore';
+import { useNpc, useMarker, MissionMarker } from './useNpc';
 
 interface BabyProps {
   id: string;
@@ -14,7 +14,6 @@ interface BabyProps {
   name?: string;
 }
 
-const INTERACTION_DISTANCE = 2.5;
 const FLOAT_SPEED = 2;
 const FLOAT_AMPLITUDE = 0.05;
 
@@ -25,10 +24,9 @@ export default function Baby({
   name = 'Bebé',
 }: BabyProps) {
   const groupRef = useRef<THREE.Group>(null);
-  const [isNear, setIsNear] = useState(false);
   const floatPhase = useRef(Math.random() * Math.PI * 2);
-
-  const { playerPosition, interact, currentInteraction } = useGameStore();
+  const { isNear, cheerRef } = useNpc(id, position);
+  const marker = useMarker(id);
 
   const materials = useMemo(
     () => ({
@@ -66,22 +64,6 @@ export default function Baby({
     // Floating idle animation
     floatPhase.current += delta * FLOAT_SPEED;
     groupRef.current.position.y = Math.sin(floatPhase.current) * FLOAT_AMPLITUDE;
-
-    // Check distance to player for interaction
-    const [px, py, pz] = playerPosition;
-    const dx = px - position[0];
-    const dz = pz - position[2];
-    const dist = Math.sqrt(dx * dx + dz * dz);
-
-    const near = dist < INTERACTION_DISTANCE;
-    if (near !== isNear) {
-      setIsNear(near);
-      if (near) {
-        interact(id);
-      } else if (currentInteraction === id) {
-        interact(null);
-      }
-    }
   });
 
   return (
@@ -92,7 +74,9 @@ export default function Baby({
     >
       <CapsuleCollider args={[0.15, 0.12]} position={[0, 0.3, 0]} sensor />
 
-      <group ref={groupRef}>
+      <group ref={cheerRef} scale={1.35}>
+      {marker && <MissionMarker kind={marker} height={1.25} />}
+      <group ref={groupRef} userData={{ outline: 0.012 }}>
         {/* === HEAD (big, baby proportion) === */}
         <group position={[0, 0.55, 0]}>
           <mesh geometry={geometries.head} material={materials.skin} />
@@ -175,7 +159,7 @@ export default function Baby({
         />
 
         {/* === FLOATING ICON when player is nearby === */}
-        {isNear && (
+        {isNear && !marker && (
           <Html
             position={[0, 0.85, 0]}
             center
@@ -222,6 +206,7 @@ export default function Baby({
             {name}
           </div>
         </Html>
+      </group>
       </group>
     </RigidBody>
   );

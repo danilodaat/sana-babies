@@ -5,7 +5,7 @@ import { RigidBody } from '@react-three/rapier';
 /* ─── Simple tree: trunk cylinder + foliage sphere/cone ─── */
 function Tree({ position, height = 4 }: { position: [number, number, number]; height?: number }) {
   return (
-    <group position={position}>
+    <group position={position} userData={{ outline: 0.035 }}>
       {/* Trunk */}
       <mesh castShadow position={[0, height * 0.3, 0]}>
         <cylinderGeometry args={[0.2, 0.3, height * 0.6, 8]} />
@@ -47,6 +47,7 @@ function Lamp({ position }: { position: [number, number, number] }) {
           emissive="#FFE082"
           emissiveIntensity={1.2}
           toneMapped={false}
+          userData={{ night: 'lamp' }}
         />
       </mesh>
       {/* Light cone shade */}
@@ -124,6 +125,7 @@ function Building({
               color={windowColor}
               emissive={windowColor}
               emissiveIntensity={0.1}
+              userData={{ night: 'window' }}
               transparent
               opacity={0.75}
             />
