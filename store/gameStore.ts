@@ -287,6 +287,28 @@ export const useGameStore = create<GameState>()(
   ),
 );
 
+/**
+ * Mudanza de dominio (sana-babies → sanna-babys): el guardado vive en localStorage,
+ * que es por dominio. El dominio viejo manda la partida en el link (#save=...);
+ * aquí se importa si en este dominio todavía no hay progreso, y se limpia el link.
+ */
+export function importSaveFromLink(): boolean {
+  if (typeof window === 'undefined') return false;
+  const m = window.location.hash.match(/^#save=(.+)$/);
+  if (!m) return false;
+  history.replaceState(null, '', window.location.pathname + window.location.search);
+  try {
+    const json = decodeURIComponent(escape(atob(decodeURIComponent(m[1]))));
+    const parsed = JSON.parse(json);
+    if (!parsed?.state || hasSavedProgress()) return false;
+    window.localStorage.setItem('sana-babies-save', json);
+    void useGameStore.persist.rehydrate();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** true si hay una partida guardada con algo de progreso */
 export function hasSavedProgress(): boolean {
   const s = useGameStore.getState();

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
-import { useGameStore, hasSavedProgress } from '@/store/gameStore';
+import { useGameStore, hasSavedProgress, importSaveFromLink } from '@/store/gameStore';
 import { unlock, startMusic, setMuted, sfx } from '@/lib/audio';
 import { resetRuntime } from '@/lib/runtime';
 
@@ -40,6 +40,8 @@ export default function Home() {
 
   useEffect(() => {
     setMounted(true);
+    // Si venimos del dominio viejo, traer la partida guardada
+    if (importSaveFromLink()) setTimeout(() => setHasSave(hasSavedProgress()), 50);
     setHasSave(hasSavedProgress());
     setInstalled(isStandalone());
 
