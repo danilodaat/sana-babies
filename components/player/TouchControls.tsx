@@ -50,6 +50,7 @@ export default function TouchControls() {
   const centerRef = useRef({ x: 0, y: 0 });
   const lastCameraX = useRef(0);
   const mouseDragging = useRef(false);
+  const lastMouseX = useRef(0);
   const [toast, setToast] = useState<string | null>(null);
 
   const currentInteraction = useGameStore((s) => s.currentInteraction);
@@ -147,11 +148,16 @@ export default function TouchControls() {
     };
 
     // Escritorio: arrastrar con el mouse gira la cámara, E / Enter atiende
+    // Mouse: se calcula el delta con clientX (movementX falla en algunos trackpads/navegadores)
     const onMouseMove = (e: MouseEvent) => {
-      if (mouseDragging.current) input.cameraAngle -= e.movementX * MOUSE_SENSITIVITY;
+      if (!mouseDragging.current) return;
+      const dx = e.clientX - lastMouseX.current;
+      lastMouseX.current = e.clientX;
+      input.cameraAngle -= dx * MOUSE_SENSITIVITY;
     };
     const onMouseUp = () => {
       mouseDragging.current = false;
+      document.body.style.cursor = '';
     };
     const onKey = (e: KeyboardEvent) => {
       if ((e.code === 'KeyE' || e.code === 'Enter') && !e.repeat) {
@@ -217,12 +223,16 @@ export default function TouchControls() {
         WebkitUserSelect: 'none',
       }}
     >
-      {/* Arrastre con mouse (escritorio) en toda la pantalla, por debajo del resto */}
+      {/* Girar la cámara: arrastrar (dedo o mouse) en cualquier parte libre de la pantalla.
+          Joystick y botones están encima y no dejan pasar el toque. */}
       <div
-        onMouseDown={() => {
+        onTouchStart={handleCameraStart}
+        onMouseDown={(e) => {
           mouseDragging.current = true;
+          lastMouseX.current = e.clientX;
+          document.body.style.cursor = 'grabbing';
         }}
-        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', cursor: 'grab' }}
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'auto', touchAction: 'none', cursor: 'grab' }}
       />
 
       {/* HUD — barra superior */}
@@ -282,20 +292,6 @@ export default function TouchControls() {
       </div>
 
       {toast && <div className="sb-toast">{toast}</div>}
-
-      {/* Zona de swipe para la cámara — mitad derecha */}
-      <div
-        onTouchStart={handleCameraStart}
-        style={{
-          position: 'absolute',
-          top: 60,
-          right: 0,
-          width: '55%',
-          bottom: 190,
-          pointerEvents: 'auto',
-          touchAction: 'none',
-        }}
-      />
 
       {/* Joystick — abajo a la izquierda */}
       <div
