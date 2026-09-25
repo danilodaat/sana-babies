@@ -5,6 +5,8 @@ import MiniGame, { type MiniGameResult } from '../ui/MiniGame';
 import { sfx } from '@/lib/audio';
 
 interface Props {
+  /** Kit de precisión: ventanas de acierto más amplias */
+  assist?: boolean;
   onFinish: (result: MiniGameResult) => void;
   onClose?: () => void;
 }
@@ -24,7 +26,7 @@ const WINDOW = 0.3;
 
 type Judge = 'perfect' | 'good' | 'miss';
 
-export default function Stethoscope({ onFinish, onClose }: Props) {
+export default function Stethoscope({ onFinish, onClose, assist = false }: Props) {
   return (
     <MiniGame
       title="Escuchar con el estetoscopio"
@@ -33,12 +35,14 @@ export default function Stethoscope({ onFinish, onClose }: Props) {
       onFinish={onFinish}
       onClose={onClose}
     >
-      {({ onComplete }) => <StethoscopeGame onComplete={onComplete} />}
+      {({ onComplete }) => <StethoscopeGame onComplete={onComplete} assist={assist} />}
     </MiniGame>
   );
 }
 
-function StethoscopeGame({ onComplete }: { onComplete: (precision: number) => void }) {
+function StethoscopeGame({ onComplete, assist }: { onComplete: (precision: number) => void; assist: boolean }) {
+  const perfect = assist ? PERFECT * 1.6 : PERFECT;
+  const good = assist ? GOOD * 1.4 : GOOD;
   const [now, setNow] = useState(0);
   const [judges, setJudges] = useState<(Judge | null)[]>(() => BEATS.map(() => null));
   const [flash, setFlash] = useState<{ text: string; color: string; key: number } | null>(null);
@@ -116,7 +120,7 @@ function StethoscopeGame({ onComplete }: { onComplete: (precision: number) => vo
       sfx.tick();
       return;
     }
-    const judge: Judge = bestErr <= PERFECT ? 'perfect' : bestErr <= GOOD ? 'good' : 'miss';
+    const judge: Judge = bestErr <= perfect ? 'perfect' : bestErr <= good ? 'good' : 'miss';
     const next = [...judgesRef.current];
     next[best] = judge;
     judgesRef.current = next;

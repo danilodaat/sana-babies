@@ -8,6 +8,7 @@ import { NPC_BY_ID, npcName } from '@/lib/npcs';
 import { getObjective, nearestNpc } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
+import { toast } from '@/lib/toast';
 import { npcPositions, cheerNpc } from '@/lib/runtime';
 import type { MiniGameResult } from './ui/MiniGame';
 import Thermometer from './minigames/Thermometer';
@@ -66,6 +67,7 @@ export default function GameFlow() {
   const cancelEmergency = useGameStore((s) => s.cancelEmergency);
   const addCoins = useGameStore((s) => s.addCoins);
   const addXP = useGameStore((s) => s.addXP);
+  const assist = useGameStore((s) => s.owned.includes('upgrade-kit'));
 
   const flowRef = useRef(flow);
   flowRef.current = flow;
@@ -113,6 +115,13 @@ export default function GameFlow() {
           ? `¡${who} te está esperando! Sigue la flecha.`
           : `${pick(NPC_BY_ID[npcId]?.chat ?? ['¡Hola doctor!'])} (Tu paciente ${who} te espera ${zoneIn(active.zone)})`;
       setFlow({ t: 'chat', npcId, text });
+      return;
+    }
+
+    // La farmacia de Don Pepe abre la tienda
+    if (NPC_BY_ID[npcId]?.role === 'shop') {
+      sfx.pop();
+      s.setPanel('shop');
       return;
     }
 
@@ -191,6 +200,7 @@ export default function GameFlow() {
       const mult = stars === 3 ? 1 : stars === 2 ? 0.75 : 0.5;
       let coins = Math.round(c.reward.coins * mult);
       if (onTime) coins = Math.round(coins * 1.5);
+      if (s.owned.includes('upgrade-bag')) coins = Math.round(coins * 1.2);
       const xp = Math.round(c.reward.xp * mult);
 
       if (stars >= 2) sfx.heal();
@@ -243,9 +253,14 @@ export default function GameFlow() {
     const f = flowRef.current;
     if (f.t !== 'result') return;
     sfx.click();
+    const hadGold = useGameStore.getState().owned.includes('coat-gold');
     addCoins(f.coins);
     addXP(f.xp);
-    finishCase(f.c.id, !!f.c.repeatable);
+    finishCase(f.c.id, !!f.c.repeatable, f.stars, f.c.patientId);
+    if (!hadGold && useGameStore.getState().owned.includes('coat-gold')) {
+      toast('¡Álbum completo! Ganaste la bata dorada 🏆', '📔', { big: true, ms: 4200 });
+      sfx.levelUp();
+    }
     setFlow({ t: 'idle' });
   }, [addCoins, addXP, finishCase]);
 
@@ -264,8 +279,8 @@ export default function GameFlow() {
     case 'exam': {
       const game = flow.c.exam[flow.step];
       const key = `${flow.c.id}-exam-${flow.step}`;
-      if (game === 'thermometer') content = <Thermometer key={key} onFinish={examDone} onClose={abortMinigame} />;
-      if (game === 'stethoscope') content = <Stethoscope key={key} onFinish={examDone} onClose={abortMinigame} />;
+      if (game === 'thermometer') content = <Thermometer key={key} assist={assist} onFinish={examDone} onClose={abortMinigame} />;
+      if (game === 'stethoscope') content = <Stethoscope key={key} assist={assist} onFinish={examDone} onClose={abortMinigame} />;
       if (game === 'flashlight') content = <Flashlight key={key} onFinish={examDone} onClose={abortMinigame} />;
       break;
     }
@@ -278,7 +293,7 @@ export default function GameFlow() {
       if (t.game === 'vaccine') content = <Vaccine onFinish={treatDone} onClose={abortMinigame} />;
       if (t.game === 'syrup') {
         const label = t.options.find((o) => o.id === t.correct)?.label.toLowerCase() ?? 'jarabe';
-        content = <Syrup dose={t.dose ?? 5} label={label} onFinish={treatDone} onClose={abortMinigame} />;
+        content = <Syrup dose={t.dose ?? 5} label={label} assist={assist} onFinish={treatDone} onClose={abortMinigame} />;
       }
       break;
     }

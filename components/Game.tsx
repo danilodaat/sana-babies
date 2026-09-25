@@ -26,6 +26,15 @@ import Minimap from './ui/Minimap';
 import Ambulance, { ambulance } from './world/Ambulance';
 import ObjectiveArrow from './fx/ObjectiveArrow';
 import { NPCS } from '@/lib/npcs';
+import Zones from './world/Zones';
+import Residencial from './world/Residencial';
+import School from './world/School';
+import Playground from './world/Playground';
+import HospitalDecor from './world/HospitalDecor';
+import Shop from './ui/Shop';
+import Album from './ui/Album';
+import Tutorial from './ui/Tutorial';
+import { HudButtons, Toaster } from './ui/Hud';
 import { useGameStore } from '@/store/gameStore';
 
 /** Key‑map for KeyboardControls */
@@ -80,6 +89,11 @@ export default function Game() {
       {started && (
         <div style={{ position: 'fixed', inset: 0, zIndex: 25, pointerEvents: 'none' }}>
           <Minimap />
+          <HudButtons />
+          <Toaster />
+          <Shop />
+          <Album />
+          <Tutorial />
         </div>
       )}
       <LevelUp />
@@ -102,6 +116,9 @@ export default function Game() {
               <Ground />
               <Hospital />
               <City />
+              <School />
+              <Residencial />
+              <Playground />
               <Doctor />
               {/* NPCs (definidos en lib/npcs.ts) */}
               {NPCS.map((n) =>
@@ -115,6 +132,8 @@ export default function Game() {
             </Physics>
 
             <Ambulance />
+            <Zones />
+            <HospitalDecor />
             <ObjectiveArrow />
             <Foliage />
             <Sky />

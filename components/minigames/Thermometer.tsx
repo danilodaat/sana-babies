@@ -4,6 +4,8 @@ import { useCallback, useRef, useState } from 'react';
 import MiniGame, { type MiniGameResult } from '../ui/MiniGame';
 
 interface ThermometerProps {
+  /** Kit de precisión: zona verde más ancha */
+  assist?: boolean;
   onFinish: (result: MiniGameResult) => void;
   onClose?: () => void;
 }
@@ -11,10 +13,10 @@ interface ThermometerProps {
 // Temperature ranges (mapped to 0-100% of the bar)
 const TEMP_MIN = 35.0;
 const TEMP_MAX = 42.0;
-const GREEN_LOW = 36.5;
-const GREEN_HIGH = 37.5;
-const YELLOW_LOW = 36.0;
-const YELLOW_HIGH = 38.0;
+// Zonas normales y con el Kit de precisión (verde más ancha)
+interface Ranges { gl: number; gh: number; yl: number; yh: number }
+const NORMAL: Ranges = { gl: 36.5, gh: 37.5, yl: 36.0, yh: 38.0 };
+const ASSIST: Ranges = { gl: 36.2, gh: 37.9, yl: 35.7, yh: 38.4 };
 
 function tempToPercent(temp: number): number {
   return ((temp - TEMP_MIN) / (TEMP_MAX - TEMP_MIN)) * 100;
@@ -24,21 +26,21 @@ function percentToTemp(pct: number): number {
   return TEMP_MIN + (pct / 100) * (TEMP_MAX - TEMP_MIN);
 }
 
-function getZoneColor(pct: number): string {
+function getZoneColor(pct: number, r: Ranges): string {
   const temp = percentToTemp(pct);
-  if (temp >= GREEN_LOW && temp <= GREEN_HIGH) return '#4ade80'; // green
-  if (temp >= YELLOW_LOW && temp <= YELLOW_HIGH) return '#facc15'; // yellow
+  if (temp >= r.gl && temp <= r.gh) return '#4ade80'; // green
+  if (temp >= r.yl && temp <= r.yh) return '#facc15'; // yellow
   return '#f87171'; // red
 }
 
-function getPrecision(pct: number): number {
+function getPrecision(pct: number, r: Ranges): number {
   const temp = percentToTemp(pct);
-  if (temp >= GREEN_LOW && temp <= GREEN_HIGH) return 1.0;
-  if (temp >= YELLOW_LOW && temp <= YELLOW_HIGH) return 0.6;
+  if (temp >= r.gl && temp <= r.gh) return 1.0;
+  if (temp >= r.yl && temp <= r.yh) return 0.6;
   return 0.2;
 }
 
-export default function Thermometer({ onFinish, onClose }: ThermometerProps) {
+export default function Thermometer({ onFinish, onClose, assist = false }: ThermometerProps) {
   return (
     <MiniGame
       title="Tomar Temperatura"
@@ -48,7 +50,7 @@ export default function Thermometer({ onFinish, onClose }: ThermometerProps) {
       onClose={onClose}
     >
       {({ onComplete }) => (
-        <ThermometerGame onComplete={onComplete} />
+        <ThermometerGame onComplete={onComplete} r={assist ? ASSIST : NORMAL} />
       )}
     </MiniGame>
   );
@@ -58,8 +60,10 @@ export default function Thermometer({ onFinish, onClose }: ThermometerProps) {
 
 function ThermometerGame({
   onComplete,
+  r,
 }: {
   onComplete: (precision: number) => void;
+  r: Ranges;
 }) {
   const [mercuryPct, setMercuryPct] = useState(0);
   const [released, setReleased] = useState(false);
@@ -92,23 +96,23 @@ function ThermometerGame({
     // Small delay to show final position
     setTimeout(() => {
       setMercuryPct((current) => {
-        onComplete(getPrecision(current));
+        onComplete(getPrecision(current, r));
         return current;
       });
     }, 300);
   }, [released, onComplete]);
 
-  const greenLow = tempToPercent(GREEN_LOW);
-  const greenHigh = tempToPercent(GREEN_HIGH);
-  const yellowLow = tempToPercent(YELLOW_LOW);
-  const yellowHigh = tempToPercent(YELLOW_HIGH);
+  const greenLow = tempToPercent(r.gl);
+  const greenHigh = tempToPercent(r.gh);
+  const yellowLow = tempToPercent(r.yl);
+  const yellowHigh = tempToPercent(r.yh);
 
   const currentTemp = percentToTemp(mercuryPct).toFixed(1);
 
   return (
     <div className="flex flex-col items-center gap-4 w-full">
       {/* Temperature readout */}
-      <div className="text-2xl font-bold tabular-nums" style={{ color: getZoneColor(mercuryPct) }}>
+      <div className="text-2xl font-bold tabular-nums" style={{ color: getZoneColor(mercuryPct, r) }}>
         {currentTemp}°C
       </div>
 
@@ -148,7 +152,7 @@ function ThermometerGame({
             className="absolute bottom-0 left-0 right-0 transition-all duration-75 ease-linear rounded-b-full"
             style={{
               height: `${mercuryPct}%`,
-              background: `linear-gradient(to top, #ef4444, ${getZoneColor(mercuryPct)})`,
+              background: `linear-gradient(to top, #ef4444, ${getZoneColor(mercuryPct, r)})`,
             }}
           />
         </div>

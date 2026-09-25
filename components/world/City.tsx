@@ -320,14 +320,6 @@ export function City() {
           color="#BBDEFB"
           roofColor="#1565C0"
         />
-
-        {/* School — green with wider shape */}
-        <Building
-          position={[35, 0, 32]}
-          size={[14, 7, 10]}
-          color="#C8E6C9"
-          roofColor="#2E7D32"
-        />
         {/* School flag pole */}
         <mesh position={[28, 3.5, 32]}>
           <cylinderGeometry args={[0.05, 0.05, 7, 6]} />
@@ -368,20 +360,6 @@ export function City() {
         </group>
 
         {/* -- WEST side -- */}
-        {/* Cozy house — warm orange */}
-        <Building
-          position={[-38, 0, 5]}
-          size={[7, 5, 7]}
-          color="#FFE0B2"
-          roofColor="#E65100"
-        />
-        {/* Two-story house — teal */}
-        <Building
-          position={[-38, 0, -8]}
-          size={[8, 8, 7]}
-          color="#B2DFDB"
-          roofColor="#00695C"
-        />
 
         {/* -- NORTH -- */}
         {/* Cafe — coral */}

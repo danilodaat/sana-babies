@@ -20,14 +20,20 @@ const BLOCKED: [number, number, number, number][] = [
   [-15, 32, 5, 4.5],
   [-3, 34, 6, 5.5],
   [12, 33, 5.5, 5],
-  [35, 32, 8, 6],
+  [36, 33, 10, 7], // escuela
+  [36, 26, 9, 3], // arco y patio de la escuela
   [35, -5, 5, 5],
   [35, 8, 4.5, 4],
-  [-38, 5, 4.5, 4.5],
-  [-38, -8, 5, 4.5],
+  [-45.5, -9, 17, 3.5], // Calle Sol
+  [-45, 0, 13, 5.5], // casas norte + jardines
+  [-45, -18, 13, 5.5], // casas sur + jardines
+  [-30.5, -9, 1.5, 4.5], // arco del sol
   [-10, -28, 5, 4.5],
   [5, -30, 6, 5],
   [-40, 38, 1.5, 11], // sendero del parque
+  [-50, 37.5, 3, 2], // columpios
+  [-30, 33, 2.5, 2], // tobogán
+  [-47, 44, 1.8, 1.8], // arenero
 ];
 
 function blocked(x: number, z: number) {

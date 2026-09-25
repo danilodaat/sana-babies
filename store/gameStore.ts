@@ -1,5 +1,19 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage, type StateStorage } from 'zustand/middleware';
+import { DEFAULT_OWNED, ITEM_BY_ID } from '@/lib/shop';
+import { CASES } from '@/lib/cases';
+
+/** Pacientes que cuentan para el álbum (todos los que aparecen en algún caso) */
+export const ALBUM_PATIENTS = [...new Set(CASES.map((c) => c.patientId))];
+
+export interface Equipped {
+  coat: string;
+  hat: string | null;
+  extras: string[];
+}
+
+/** Paso del tutorial de Lucía. 99 = terminado */
+export const TUTORIAL_DONE = 99;
 
 export type Quality = 'alto' | 'bajo';
 
@@ -32,6 +46,18 @@ interface GameState {
   lastCaseEndedAt: number;
   /** Cuántos pacientes curados en total (incluye emergencias repetidas) */
   patientsHealed: number;
+  /** Mejor puntaje (estrellas) por caso */
+  caseStars: Record<string, number>;
+  /** Veces que se curó a cada paciente (álbum) */
+  npcHealed: Record<string, number>;
+
+  // Tienda
+  owned: string[];
+  equipped: Equipped;
+
+  tutorialStep: number;
+  /** UI abierta desde el HUD */
+  panel: 'shop' | 'album' | null;
 
   // Progresión
   coins: number;
@@ -51,7 +77,11 @@ interface GameState {
   setModal: (modal: boolean) => void;
   startCase: (caseId: string, emergency?: EmergencyState) => void;
   markArrival: (onTime: boolean) => void;
-  finishCase: (caseId: string, repeatable: boolean) => void;
+  finishCase: (caseId: string, repeatable: boolean, stars?: number, patientId?: string) => void;
+  buy: (itemId: string) => boolean;
+  equip: (itemId: string) => void;
+  setTutorialStep: (step: number) => void;
+  setPanel: (panel: 'shop' | 'album' | null) => void;
   cancelEmergency: () => void;
   addCoins: (amount: number) => void;
   addXP: (amount: number) => void;
@@ -112,6 +142,11 @@ const initialProgress = {
   completedMissions: [] as string[],
   emergency: null as EmergencyState | null,
   patientsHealed: 0,
+  caseStars: {} as Record<string, number>,
+  npcHealed: {} as Record<string, number>,
+  owned: [...DEFAULT_OWNED],
+  equipped: { coat: 'coat-white', hat: null, extras: [] } as Equipped,
+  tutorialStep: 0,
   coins: 0,
   xp: 0,
   level: 1,
@@ -119,7 +154,7 @@ const initialProgress = {
 
 export const useGameStore = create<GameState>()(
   persist(
-    (set) => ({
+    (set, get) => ({
       started: false,
       currentInteraction: null,
       actionTriggered: 0,
@@ -127,6 +162,7 @@ export const useGameStore = create<GameState>()(
       lastCaseEndedAt: 0,
       ...initialProgress,
       levelUp: null,
+      panel: null,
       muted: false,
       quality: defaultQuality(),
 
@@ -140,15 +176,51 @@ export const useGameStore = create<GameState>()(
       markArrival: (onTime) =>
         set((s) => (s.emergency && s.emergency.onTime === null ? { emergency: { ...s.emergency, onTime } } : {})),
 
-      finishCase: (caseId, repeatable) =>
-        set((s) => ({
-          activeCase: null,
-          emergency: null,
-          lastCaseEndedAt: Date.now(),
-          patientsHealed: s.patientsHealed + 1,
-          completedMissions:
-            repeatable || s.completedMissions.includes(caseId) ? s.completedMissions : [...s.completedMissions, caseId],
-        })),
+      finishCase: (caseId, repeatable, stars = 1, patientId) =>
+        set((s) => {
+          const npcHealed = patientId ? { ...s.npcHealed, [patientId]: (s.npcHealed[patientId] ?? 0) + 1 } : s.npcHealed;
+          // Álbum completo → bata dorada de regalo (una sola vez)
+          const albumDone = ALBUM_PATIENTS.every((id) => (npcHealed[id] ?? 0) > 0);
+          const owned = albumDone && !s.owned.includes('coat-gold') ? [...s.owned, 'coat-gold'] : s.owned;
+          return {
+            activeCase: null,
+            emergency: null,
+            lastCaseEndedAt: Date.now(),
+            patientsHealed: s.patientsHealed + 1,
+            caseStars: { ...s.caseStars, [caseId]: Math.max(s.caseStars[caseId] ?? 0, stars) },
+            npcHealed,
+            owned,
+            completedMissions:
+              repeatable || s.completedMissions.includes(caseId) ? s.completedMissions : [...s.completedMissions, caseId],
+          };
+        }),
+
+      buy: (itemId) => {
+        const item = ITEM_BY_ID[itemId];
+        let ok = false;
+        set((s) => {
+          if (!item || item.reward || s.owned.includes(itemId) || s.coins < item.price || s.level < item.minLevel) return {};
+          ok = true;
+          return { coins: s.coins - item.price, owned: [...s.owned, itemId] };
+        });
+        if (ok) get().equip(itemId);
+        return ok;
+      },
+
+      equip: (itemId) =>
+        set((s) => {
+          const item = ITEM_BY_ID[itemId];
+          if (!item || !s.owned.includes(itemId)) return {};
+          const e = s.equipped;
+          if (item.slot === 'coat') return { equipped: { ...e, coat: itemId } };
+          if (item.slot === 'hat') return { equipped: { ...e, hat: e.hat === itemId ? null : itemId } };
+          if (item.slot === 'extra')
+            return { equipped: { ...e, extras: e.extras.includes(itemId) ? e.extras.filter((x) => x !== itemId) : [...e.extras, itemId] } };
+          return {}; // mejoras y decoración funcionan con solo tenerlas
+        }),
+
+      setTutorialStep: (tutorialStep) => set({ tutorialStep }),
+      setPanel: (panel) => set({ panel, modal: panel !== null }),
 
       cancelEmergency: () => set({ activeCase: null, emergency: null, lastCaseEndedAt: Date.now() }),
 
@@ -168,12 +240,17 @@ export const useGameStore = create<GameState>()(
     }),
     {
       name: 'sana-babies-save',
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         activeCase: s.activeCase,
         completedMissions: s.completedMissions,
         patientsHealed: s.patientsHealed,
+        caseStars: s.caseStars,
+        npcHealed: s.npcHealed,
+        owned: s.owned,
+        equipped: s.equipped,
+        tutorialStep: s.tutorialStep,
         coins: s.coins,
         xp: s.xp,
         level: s.level,
@@ -188,6 +265,20 @@ export const useGameStore = create<GameState>()(
           p.activeCase = accepted[0] ?? null;
           p.patientsHealed = ((p.completedMissions as string[] | undefined) ?? []).length;
           delete p.acceptedMissions;
+        }
+        if (version < 3) {
+          // Quien ya jugó no necesita el tutorial; su progreso previo cuenta para el álbum
+          const done = (p.completedMissions as string[] | undefined) ?? [];
+          p.tutorialStep = done.length > 0 ? TUTORIAL_DONE : 0;
+          const healed: Record<string, number> = {};
+          done.forEach((id) => {
+            const c = CASES.find((x) => x.id === id);
+            if (c) healed[c.patientId] = (healed[c.patientId] ?? 0) + 1;
+          });
+          p.npcHealed = healed;
+          p.caseStars = Object.fromEntries(done.map((id) => [id, 2]));
+          p.owned = [...DEFAULT_OWNED];
+          p.equipped = { coat: 'coat-white', hat: null, extras: [] };
         }
         return p as unknown as GameState;
       },

@@ -73,6 +73,9 @@ const T = {
   shade: { id: 'shade', label: 'Sombra y suero', emoji: '⛱️' },
   cast: { id: 'cast', label: 'Enyesar la pierna', emoji: '🦴' },
   rest: { id: 'rest', label: 'Solo descansar', emoji: '🛌' },
+  massage: { id: 'massage', label: 'Masaje en la pancita', emoji: '👐' },
+  itchCream: { id: 'itch-cream', label: 'Crema para la picazón', emoji: '🧴' },
+  sting: { id: 'sting', label: 'Sacar el aguijón y poner hielo', emoji: '🧊' },
 } satisfies Record<string, TreatmentOption>;
 
 export const CASES: Case[] = [
@@ -195,6 +198,55 @@ export const CASES: Case[] = [
     reward: { coins: 130, xp: 260 },
   },
 
+  // ─── Historia: nivel 4 (Residencial Sol) ───
+  {
+    id: 'case-colicos-emma',
+    title: 'Visita a domicilio: Cólicos',
+    type: 'visita',
+    zone: 'Residencial Sol',
+    giverId: 'mother-elena',
+    patientId: 'baby-emma',
+    minLevel: 4,
+    requires: ['case-garganta-tomas'],
+    giverDialogue: 'Doctor, gracias por venir hasta el barrio. Emma llora mucho después de comer y encoge las piernitas...',
+    description: 'Escucha la pancita de Emma con el estetoscopio.',
+    exam: ['stethoscope'],
+    findings: [{ emoji: '🫧', text: 'Pancita con burbujitas de gas: cólicos' }],
+    treatment: {
+      options: [T.vaccine, T.iceCream, T.massage],
+      correct: 'massage',
+      hint: 'Emma es muy chiquita para helados, y la vacuna no saca el gas. ¿Qué la alivia suavecito?',
+      applyText: 'Masajitos en círculos en la pancita... ¡Emma suelta el gas y se ríe!',
+    },
+    thanks: '¡Emma se quedó dormidita y feliz! Muchas gracias, doctor.',
+    reward: { coins: 140, xp: 280 },
+  },
+  {
+    id: 'case-varicela-lucas',
+    title: 'Puntitos que pican',
+    type: 'visita',
+    zone: 'Residencial Sol',
+    giverId: 'kid-lucas',
+    patientId: 'kid-lucas',
+    minLevel: 4,
+    requires: ['case-colicos-emma'],
+    giverDialogue: 'Doc, me salieron puntitos rojos por todo el cuerpo y me pican muchísimo...',
+    description: 'Tómale la temperatura a Lucas y mira sus puntitos.',
+    exam: ['thermometer'],
+    findings: [
+      { emoji: '🌡️', text: '37.7 °C — un poquito de fiebre' },
+      { emoji: '👀', text: 'Puntitos rojos con agüita: es varicela' },
+    ],
+    treatment: {
+      options: [T.bandaid, T.itchCream, T.cast],
+      correct: 'itch-cream',
+      hint: '¡Son demasiados puntitos para ponerles curitas! ¿Qué calma la picazón?',
+      applyText: 'Un poquito de crema fresquita en cada puntito... ¡ya no pica!',
+    },
+    thanks: '¡Ya no me pica! Me voy a quedar en casa hasta curarme, como dijiste.',
+    reward: { coins: 150, xp: 300 },
+  },
+
   // ─── Emergencias (llegan por teléfono desde nivel 2, repetibles) ───
   {
     id: 'emergency-calor-valentina',
@@ -241,6 +293,29 @@ export const CASES: Case[] = [
     reward: { coins: 80, xp: 180 },
     timeLimit: 55,
     ambulanceRoute: [[6, 16], [-44, 16], [-44, 21]],
+    repeatable: true,
+  },
+  {
+    id: 'emergency-abeja-martina',
+    title: '¡Picadura de abeja!',
+    type: 'emergencia',
+    zone: 'Residencial Sol',
+    patientId: 'kid-martina',
+    minLevel: 4,
+    giverDialogue: '¡Doctor! A Martina le picó una abeja en el jardín y está llorando.',
+    description: 'Corre al Residencial Sol y ayuda a Martina.',
+    exam: [],
+    findings: [{ emoji: '🐝', text: 'Picadura en el brazo, con el aguijón todavía puesto' }],
+    treatment: {
+      options: [T.syrupFever, T.sting, T.vaccine],
+      correct: 'sting',
+      hint: 'Primero hay que quitar lo que dejó la abeja y bajar la hinchazón.',
+      game: 'bandaid',
+    },
+    thanks: '¡Ya no duele! Voy a mirar a las abejas desde lejitos.',
+    reward: { coins: 110, xp: 220 },
+    timeLimit: 60,
+    ambulanceRoute: [[6, 16], [-23, 16], [-23, -9], [-52, -9]],
     repeatable: true,
   },
   {

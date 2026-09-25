@@ -6,6 +6,8 @@ import { sfx } from '@/lib/audio';
 
 interface Props {
   dose: number;
+  /** Kit de precisión: más tolerancia y chorro más lento */
+  assist?: boolean;
   label?: string;
   onFinish: (result: MiniGameResult) => void;
   onClose?: () => void;
@@ -22,7 +24,7 @@ const RATE_MIN = 0.8; // ml/s al empezar a servir
 const RATE_MAX = 4.2; // ml/s tras mantener presionado
 const RAMP = 0.9; // segundos hasta el caudal máximo
 
-export default function Syrup({ dose, label = 'jarabe', onFinish, onClose }: Props) {
+export default function Syrup({ dose, label = 'jarabe', assist = false, onFinish, onClose }: Props) {
   return (
     <MiniGame
       title={`Servir ${dose} ml de ${label}`}
@@ -31,12 +33,13 @@ export default function Syrup({ dose, label = 'jarabe', onFinish, onClose }: Pro
       onFinish={onFinish}
       onClose={onClose}
     >
-      {({ onComplete }) => <SyrupGame dose={dose} onComplete={onComplete} />}
+      {({ onComplete }) => <SyrupGame dose={dose} assist={assist} onComplete={onComplete} />}
     </MiniGame>
   );
 }
 
-function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision: number) => void }) {
+function SyrupGame({ dose, assist, onComplete }: { dose: number; assist: boolean; onComplete: (precision: number) => void }) {
+  const tol = assist ? 1.8 : 1;
   const [ml, setMl] = useState(0);
   const [pouring, setPouring] = useState(false);
   const [spilled, setSpilled] = useState(false);
@@ -54,7 +57,7 @@ function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision:
       const dt = Math.min((now - last.current) / 1000, 0.1);
       last.current = now;
       const held = (now - holdStart.current) / 1000;
-      const rate = RATE_MIN + (RATE_MAX - RATE_MIN) * Math.min(held / RAMP, 1);
+      const rate = (RATE_MIN + (RATE_MAX - RATE_MIN) * Math.min(held / RAMP, 1)) * (assist ? 0.75 : 1);
       mlRef.current = Math.min(mlRef.current + rate * dt, MAX_ML + 0.5);
       setMl(mlRef.current);
       if (now > bubbleAt.current) {
@@ -75,7 +78,7 @@ function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision:
     };
     raf = requestAnimationFrame(loop);
     return () => cancelAnimationFrame(raf);
-  }, [pouring, onComplete]);
+  }, [pouring, onComplete, assist]);
 
   const start = (e: React.PointerEvent) => {
     e.preventDefault();
@@ -91,7 +94,7 @@ function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision:
     done.current = true;
     setPouring(false);
     const err = Math.abs(mlRef.current - dose);
-    const precision = err <= 0.35 ? 1 : err <= 0.8 ? 0.75 : err <= 1.6 ? 0.45 : 0.2;
+    const precision = err <= 0.35 * tol ? 1 : err <= 0.8 * tol ? 0.75 : err <= 1.6 * tol ? 0.45 : 0.2;
     if (precision >= 0.75) sfx.found();
     else sfx.wrong();
     setTimeout(() => onComplete(precision), 500);
@@ -99,7 +102,7 @@ function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision:
 
   const pct = (v: number) => (Math.min(v, MAX_ML) / MAX_ML) * 100;
   const err = Math.abs(ml - dose);
-  const status = spilled ? '¡Se derramó!' : err <= 0.35 ? '¡Justo!' : ml < dose ? 'Falta un poquito' : 'Te pasaste un poco';
+  const status = spilled ? '¡Se derramó!' : err <= 0.35 * tol ? '¡Justo!' : ml < dose ? 'Falta un poquito' : 'Te pasaste un poco';
 
   return (
     <div className="flex items-end justify-center gap-6 w-full select-none">
@@ -187,7 +190,7 @@ function SyrupGame({ dose, onComplete }: { dose: number; onComplete: (precision:
           </div>
         </div>
         <div className="text-lg font-extrabold tabular-nums text-orange-600">{ml.toFixed(1)} ml</div>
-        <div className="text-xs font-bold" style={{ color: spilled ? '#dc2626' : err <= 0.35 ? '#16a34a' : '#6b7280' }}>
+        <div className="text-xs font-bold" style={{ color: spilled ? '#dc2626' : err <= 0.35 * tol ? '#16a34a' : '#6b7280' }}>
           {status}
         </div>
         <button

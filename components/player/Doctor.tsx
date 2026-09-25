@@ -10,6 +10,8 @@ import { useGameStore } from '@/store/gameStore';
 import { player, input } from '@/lib/runtime';
 import { emit } from '@/lib/fx';
 import { sfx } from '@/lib/audio';
+import { ITEM_BY_ID } from '@/lib/shop';
+import { getToonGradient } from '@/components/fx/Toonify';
 
 const MOVE_SPEED = 4.6;
 const ACCEL = 14; // qué tan rápido alcanza la velocidad (1/s)
@@ -55,6 +57,9 @@ export default function Doctor() {
   const jumpHeld = useRef(false);
 
   const started = useGameStore((s) => s.started);
+  const equipped = useGameStore((s) => s.equipped);
+  const fastShoes = useGameStore((s) => s.owned.includes('upgrade-shoes'));
+  const capeRef = useRef<THREE.Group>(null);
   const frozen = useGameStore((s) => s.modal);
   const [, getKeys] = useKeyboardControls();
   const { world, rapier } = useRapier();
@@ -64,7 +69,13 @@ export default function Doctor() {
   const materials = useMemo(
     () => ({
       skin: new THREE.MeshStandardMaterial({ color: SKIN_COLOR }),
-      coat: new THREE.MeshStandardMaterial({ color: COAT_COLOR }),
+      // Toon hecho a mano (no lo convierte Toonify) para poder cambiarle el color al equipar batas
+      coat: new THREE.MeshToonMaterial({ color: COAT_COLOR, gradientMap: getToonGradient() }),
+      gold: new THREE.MeshStandardMaterial({ color: '#ffcf33', emissive: '#ffb300', emissiveIntensity: 0.25 }),
+      capBlue: new THREE.MeshStandardMaterial({ color: '#7fd6e8' }),
+      glassFrame: new THREE.MeshStandardMaterial({ color: '#4a3b5c' }),
+      mirror: new THREE.MeshStandardMaterial({ color: '#e8eef5', emissive: '#ffffff', emissiveIntensity: 0.35 }),
+      cape: new THREE.MeshStandardMaterial({ color: '#e53950', side: THREE.DoubleSide }),
       pants: new THREE.MeshStandardMaterial({ color: PANTS_COLOR }),
       hair: new THREE.MeshStandardMaterial({ color: HAIR_COLOR }),
       eye: new THREE.MeshStandardMaterial({ color: EYE_COLOR }),
@@ -94,6 +105,14 @@ export default function Doctor() {
       stethTube: new THREE.TorusGeometry(0.13, 0.014, 8, 20, Math.PI),
       stethPiece: new THREE.CylinderGeometry(0.03, 0.03, 0.03, 12),
       crossBar: new THREE.BoxGeometry(0.1, 0.03, 0.01),
+      capDome: new THREE.SphereGeometry(0.3, 20, 12, 0, Math.PI * 2, 0, Math.PI * 0.45),
+      crownBand: new THREE.CylinderGeometry(0.2, 0.22, 0.1, 16, 1, true),
+      crownSpike: new THREE.ConeGeometry(0.045, 0.12, 6),
+      lens: new THREE.TorusGeometry(0.062, 0.012, 6, 16),
+      bridge: new THREE.BoxGeometry(0.06, 0.012, 0.012),
+      band: new THREE.TorusGeometry(0.275, 0.014, 6, 24),
+      mirrorDisc: new THREE.CylinderGeometry(0.085, 0.085, 0.015, 18),
+      cape: new THREE.PlaneGeometry(0.5, 0.62, 1, 4),
     }),
     []
   );
@@ -143,8 +162,9 @@ export default function Doctor() {
     else airTime.current += delta;
 
     // ─── Velocidad horizontal con aceleración suave ───
-    vel.current.x = damp(vel.current.x, worldX * MOVE_SPEED, ACCEL, delta);
-    vel.current.z = damp(vel.current.z, worldZ * MOVE_SPEED, ACCEL, delta);
+    const maxSpeed = MOVE_SPEED * (fastShoes ? 1.25 : 1);
+    vel.current.x = damp(vel.current.x, worldX * maxSpeed, ACCEL, delta);
+    vel.current.z = damp(vel.current.z, worldZ * maxSpeed, ACCEL, delta);
     let vy = lin.y;
 
     // ─── Salto ───
@@ -189,7 +209,7 @@ export default function Doctor() {
     player.position.set(pos.x, pos.y, pos.z);
     player.velocity.set(vel.current.x, vy, vel.current.z);
     player.grounded = grounded;
-    const speed01 = Math.min(Math.hypot(vel.current.x, vel.current.z) / MOVE_SPEED, 1);
+    const speed01 = Math.min(Math.hypot(vel.current.x, vel.current.z) / maxSpeed, 1);
     player.speed01 = speed01;
 
     // ─── Rotación hacia donde camina ───
@@ -262,6 +282,14 @@ export default function Doctor() {
       }
     }
 
+    // Bata: color del ítem equipado; la arcoíris va cambiando de tono
+    const coatItem = ITEM_BY_ID[equipped.coat];
+    if (coatItem?.color === 'rainbow') materials.coat.color.setHSL((now * 0.15) % 1, 0.75, 0.72);
+    else if (coatItem?.color) materials.coat.color.set(coatItem.color);
+
+    // Capa: se levanta con la velocidad y ondea
+    if (capeRef.current) capeRef.current.rotation.x = 0.12 + speed01 * 0.9 + Math.sin(now * 9) * 0.06 * (0.3 + speed01);
+
     // Cabeza: leve balanceo al correr
     if (headRef.current) {
       headRef.current.rotation.z = Math.sin(walkPhase.current) * 0.06 * speed01;
@@ -301,6 +329,44 @@ export default function Doctor() {
               <mesh key={x} geometry={geometries.cheek} material={materials.cheek} position={[x, -0.07, 0.2]} scale={[1, 0.6, 0.5]} userData={{ noOutline: true }} />
             ))}
           </group>
+
+          {/* === ACCESORIOS DE LA TIENDA === */}
+          <group position={[0, 1.28, 0]}>
+            {equipped.hat === 'hat-surgery' && (
+              <mesh geometry={geometries.capDome} material={materials.capBlue} position={[0, 0.05, -0.01]} rotation={[-0.15, 0, 0]} />
+            )}
+            {equipped.hat === 'hat-crown' && (
+              <group position={[0, 0.27, 0]}>
+                <mesh geometry={geometries.crownBand} material={materials.gold} />
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <mesh
+                    key={i}
+                    geometry={geometries.crownSpike}
+                    material={materials.gold}
+                    position={[Math.sin((i / 6) * Math.PI * 2) * 0.2, 0.1, Math.cos((i / 6) * Math.PI * 2) * 0.2]}
+                  />
+                ))}
+              </group>
+            )}
+            {equipped.extras.includes('extra-glasses') && (
+              <group position={[0, 0.02, 0.26]} userData={{ noOutline: true }}>
+                <mesh geometry={geometries.lens} material={materials.glassFrame} position={[-0.1, 0, 0]} />
+                <mesh geometry={geometries.lens} material={materials.glassFrame} position={[0.1, 0, 0]} />
+                <mesh geometry={geometries.bridge} material={materials.glassFrame} />
+              </group>
+            )}
+            {equipped.extras.includes('extra-mirror') && (
+              <group userData={{ noOutline: true }}>
+                <mesh geometry={geometries.band} material={materials.glassFrame} position={[0, 0.12, 0]} rotation={[Math.PI / 2 - 0.2, 0, 0]} />
+                <mesh geometry={geometries.mirrorDisc} material={materials.mirror} position={[0, 0.17, 0.26]} rotation={[Math.PI / 2 - 0.3, 0, 0]} />
+              </group>
+            )}
+          </group>
+          {equipped.extras.includes('extra-cape') && (
+            <group ref={capeRef} position={[0, 1.05, -0.2]}>
+              <mesh geometry={geometries.cape} material={materials.cape} position={[0, -0.31, 0]} />
+            </group>
+          )}
 
           {/* === STETHOSCOPE === */}
           <group position={[0, 1.02, 0.06]}>

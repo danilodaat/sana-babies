@@ -3,7 +3,7 @@
  * desde aquí y los casos clínicos (lib/cases.ts) los referencian por id.
  */
 
-export type NpcKind = 'baby' | 'mother' | 'father' | 'girl' | 'boy';
+export type NpcKind = 'baby' | 'mother' | 'father' | 'girl' | 'boy' | 'nurse';
 
 export interface NpcDef {
   id: string;
@@ -14,12 +14,27 @@ export interface NpcDef {
   color?: string;
   /** Mamá con bebé en brazos */
   hasBaby?: boolean;
+  /** Rol especial: 'shop' abre la tienda al hablarle */
+  role?: 'shop';
   /** Frases de charla cuando no hay nada que atender (se elige una al azar) */
   chat: string[];
 }
 
 export const NPCS: NpcDef[] = [
   // ─── Hospital ───
+  {
+    id: 'nurse-lucia',
+    name: 'Enfermera Lucía',
+    kind: 'nurse',
+    position: [0, 0, -3.3],
+    chat: [
+      'Si eliges el tratamiento correcto a la primera, ¡ganas más estrellas!',
+      'En emergencias, sigue la flecha roja. La ambulancia te acompaña.',
+      'Con el Kit de precisión de la farmacia, los exámenes son más fáciles.',
+      'Mira tu álbum 📔 para ver a quién te falta curar.',
+      'De noche el hospital se ilumina. ¡Aquí siempre te esperamos!',
+    ],
+  },
   {
     id: 'baby-1',
     name: 'Luciana',
@@ -77,12 +92,57 @@ export const NPCS: NpcDef[] = [
     chat: ['¡Agú! 🌞', '*se ríe y aplaude*'],
   },
 
+  // ─── Farmacia (35, 8): la tienda ───
+  {
+    id: 'shop-pepe',
+    name: 'Don Pepe',
+    kind: 'father',
+    position: [35, 0, 12.2],
+    color: '#66BB6A',
+    role: 'shop',
+    chat: ['¡Bienvenido a la farmacia, doctor! Mire qué cosas lindas tengo.'],
+  },
+
+  // ─── Residencial Sol (-47, -8) ───
+  {
+    id: 'mother-elena',
+    name: 'Elena',
+    kind: 'mother',
+    position: [-40, 0, -6.6],
+    color: '#FFB74D',
+    chat: ['¡Qué bonito está el barrio con tanto sol!', 'Mi casa es la amarilla, doctor.'],
+  },
+  {
+    id: 'baby-emma',
+    name: 'Emma',
+    kind: 'baby',
+    position: [-41.8, 0.5, -6.2],
+    color: '#E1BEE7',
+    chat: ['*hace burbujitas con la boca*', '¡Ta-ta!'],
+  },
+  {
+    id: 'kid-lucas',
+    name: 'Lucas',
+    kind: 'boy',
+    position: [-50, 0, -11],
+    color: '#E57373',
+    chat: ['¡Tengo un perrito que se llama Chispa!', 'Mi abuela hace las mejores empanadas.'],
+  },
+  {
+    id: 'kid-martina',
+    name: 'Martina',
+    kind: 'girl',
+    position: [-57, 0, -7],
+    color: '#FFD54F',
+    chat: ['¡Me encantan las flores del jardín!', 'Las abejas hacen miel, ¿sabías?'],
+  },
+
   // ─── Escuela Arcoíris (35, 32) ───
   {
     id: 'kid-tomas',
     name: 'Tomás',
     kind: 'boy',
-    position: [32, 0, 25.5],
+    position: [34.5, 0, 26],
     color: '#81C784',
     chat: ['¡Hoy aprendimos los planetas!', 'La maestra Sofía dice que hay que lavarse las manos.'],
   },

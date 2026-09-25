@@ -13,7 +13,7 @@ interface ParentProps {
   id: string;
   position: [number, number, number];
   /** Adultos o niños (los niños son el mismo modelo a escala, con otros colores) */
-  variant?: 'mother' | 'father' | 'girl' | 'boy';
+  variant?: 'mother' | 'father' | 'girl' | 'boy' | 'nurse';
   /** Color de la polera; por defecto el de cada variante */
   color?: string;
   hasBaby?: boolean;
@@ -38,7 +38,8 @@ export default function Parent({
   const { isNear, cheerRef } = useNpc(id, position);
   const marker = useMarker(id);
 
-  const isMother = variant === 'mother' || variant === 'girl';
+  const isMother = variant === 'mother' || variant === 'girl' || variant === 'nurse';
+  const isNurse = variant === 'nurse';
   const isKid = variant === 'girl' || variant === 'boy';
 
   const colors = useMemo(() => {
@@ -47,6 +48,7 @@ export default function Parent({
       father: { shirt: '#1565c0', pants: '#37474f', hair: '#212121', skin: '#d7a87e' },
       girl: { shirt: '#ff8fb1', pants: '#7e57c2', hair: '#5d4037', skin: '#f8d0b0' },
       boy: { shirt: '#4fc3f7', pants: '#455a64', hair: '#3e2723', skin: '#e0b48e' },
+      nurse: { shirt: '#ffffff', pants: '#f48fb1', hair: '#6d4c41', skin: '#f1c7a5' },
     }[variant];
     return color ? { ...base, shirt: color } : base;
   }, [variant, color]);
@@ -126,6 +128,22 @@ export default function Parent({
             material={materials.hair}
             position={[0, 0.02, 0]}
           />
+          {/* Cofia de enfermera con cruz */}
+          {isNurse && (
+            <group position={[0, 0.2, 0.02]} rotation={[-0.25, 0, 0]}>
+              <mesh material={materials.eyeWhite}>
+                <boxGeometry args={[0.26, 0.09, 0.14]} />
+              </mesh>
+              <mesh position={[0, 0, 0.075]}>
+                <boxGeometry args={[0.07, 0.02, 0.01]} />
+                <meshStandardMaterial color="#ef4b6c" />
+              </mesh>
+              <mesh position={[0, 0, 0.075]}>
+                <boxGeometry args={[0.02, 0.07, 0.01]} />
+                <meshStandardMaterial color="#ef4b6c" />
+              </mesh>
+            </group>
+          )}
           {/* Long hair for mother */}
           {isMother && (
             <mesh

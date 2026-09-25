@@ -51,9 +51,16 @@ function makeOutlineMaterial(thickness: number) {
 
 const noRaycast = () => {};
 
+let sharedGradient: THREE.DataTexture | null = null;
+/** Rampa de tonos compartida, para materiales toon creados a mano (p. ej. la bata que cambia de color) */
+export function getToonGradient() {
+  if (!sharedGradient) sharedGradient = makeGradient();
+  return sharedGradient;
+}
+
 export default function Toonify() {
   const scene = useThree((s) => s.scene);
-  const gradient = useMemo(makeGradient, []);
+  const gradient = useMemo(getToonGradient, []);
   const cache = useRef(new Map<string, THREE.MeshToonMaterial>());
   const outlineCache = useRef(new Map<number, THREE.MeshBasicMaterial>());
   const frame = useRef(0);

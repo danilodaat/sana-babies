@@ -8,6 +8,8 @@ import { useGameStore } from '@/store/gameStore';
 import { player, input } from '@/lib/runtime';
 
 const CAMERA_OFFSET = new THREE.Vector3(0, 5.2, 7.5);
+// Dentro del hospital (techo a 7 m): cámara más alta y cercana, casi cenital
+const INDOOR_OFFSET = new THREE.Vector3(0, 5.4, 4.2);
 const LOOK_OFFSET = new THREE.Vector3(0, 1.1, 0);
 const UP = new THREE.Vector3(0, 1, 0);
 const flatVel = new THREE.Vector3();
@@ -28,6 +30,7 @@ export default function CameraFollow() {
   const desiredLook = useRef(new THREE.Vector3());
   const offset = useRef(new THREE.Vector3());
   const fov = useRef(60);
+  const indoor = useRef(0);
   const camDist = useRef(10);
   const { world, rapier } = useRapier();
   const ray = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: 0, z: 1 }), [rapier]);
@@ -50,7 +53,12 @@ export default function CameraFollow() {
       const speed = player.speed01;
       // En vertical (celular) el campo horizontal es angosto: alejar la cámara
       const portrait = camera.aspect < 1 ? Math.min(Math.pow(1 / camera.aspect, 0.5), 1.6) : 1;
-      offset.current.copy(CAMERA_OFFSET).multiplyScalar((1 + speed * 0.12) * portrait);
+      const inside = Math.abs(player.position.x) < 11.5 && Math.abs(player.position.z) < 8.5 ? 1 : 0;
+      indoor.current += (inside - indoor.current) * (1 - Math.exp(-3 * delta));
+      offset.current
+        .copy(CAMERA_OFFSET)
+        .lerp(INDOOR_OFFSET, indoor.current)
+        .multiplyScalar((1 + speed * 0.12) * (1 + (portrait - 1) * (1 - indoor.current * 0.6)));
       offset.current.applyAxisAngle(UP, input.cameraAngle);
       desired.current.copy(player.position).add(offset.current);
       desiredLook.current
