@@ -56,6 +56,10 @@ interface GameState {
   equipped: Equipped;
 
   tutorialStep: number;
+  /** Caricias por gatito (álbum de gatitos) */
+  catsPetted: Record<string, number>;
+  /** Gatito adoptado que sigue al doctor */
+  petCat: string | null;
   /** UI abierta desde el HUD */
   panel: 'shop' | 'album' | null;
 
@@ -81,6 +85,8 @@ interface GameState {
   buy: (itemId: string) => boolean;
   equip: (itemId: string) => void;
   setTutorialStep: (step: number) => void;
+  petCatOnce: (catId: string) => number;
+  adoptCat: (catId: string | null) => void;
   setPanel: (panel: 'shop' | 'album' | null) => void;
   cancelEmergency: () => void;
   addCoins: (amount: number) => void;
@@ -147,6 +153,8 @@ const initialProgress = {
   owned: [...DEFAULT_OWNED],
   equipped: { coat: 'coat-white', hat: null, extras: [] } as Equipped,
   tutorialStep: 0,
+  catsPetted: {} as Record<string, number>,
+  petCat: null as string | null,
   coins: 0,
   xp: 0,
   level: 1,
@@ -220,6 +228,12 @@ export const useGameStore = create<GameState>()(
         }),
 
       setTutorialStep: (tutorialStep) => set({ tutorialStep }),
+      petCatOnce: (catId) => {
+        const n = (get().catsPetted[catId] ?? 0) + 1;
+        set((s) => ({ catsPetted: { ...s.catsPetted, [catId]: n } }));
+        return n;
+      },
+      adoptCat: (petCat) => set({ petCat }),
       setPanel: (panel) => set({ panel, modal: panel !== null }),
 
       cancelEmergency: () => set({ activeCase: null, emergency: null, lastCaseEndedAt: Date.now() }),
@@ -241,7 +255,7 @@ export const useGameStore = create<GameState>()(
     {
       // Nombre interno del guardado: no cambiar aunque el juego se renombre (se perdería el progreso)
       name: 'sana-babies-save',
-      version: 3,
+      version: 4,
       storage: createJSONStorage(() => safeStorage),
       partialize: (s) => ({
         activeCase: s.activeCase,
@@ -252,6 +266,8 @@ export const useGameStore = create<GameState>()(
         owned: s.owned,
         equipped: s.equipped,
         tutorialStep: s.tutorialStep,
+        catsPetted: s.catsPetted,
+        petCat: s.petCat,
         coins: s.coins,
         xp: s.xp,
         level: s.level,
@@ -280,6 +296,10 @@ export const useGameStore = create<GameState>()(
           p.caseStars = Object.fromEntries(done.map((id) => [id, 2]));
           p.owned = [...DEFAULT_OWNED];
           p.equipped = { coat: 'coat-white', hat: null, extras: [] };
+        }
+        if (version < 4) {
+          p.catsPetted = {};
+          p.petCat = null;
         }
         return p as unknown as GameState;
       },

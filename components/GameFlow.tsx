@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
 import { CASE_BY_ID, availableStoryCases, emergencyPool, isEmergency, scoreCase, zoneIn, zoneTo, type Case, type TreatmentOption } from '@/lib/cases';
 import { NPC_BY_ID, npcName } from '@/lib/npcs';
+import { CAT_BY_ID, PETS_TO_ADOPT, catIdFrom, catPetAt, catPositions, isCatInteraction } from '@/lib/cats';
 import { getObjective, nearestNpc, waypointFor } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
@@ -17,7 +18,7 @@ import Vaccine from './minigames/Vaccine';
 import Stethoscope from './minigames/Stethoscope';
 import Flashlight from './minigames/Flashlight';
 import Syrup from './minigames/Syrup';
-import { ApplyCard, ChatCard, DiagnosisCard, OfferCard, PhoneCall, ResultCard } from './ui/CaseUI';
+import { AdoptCard, ApplyCard, ChatCard, DiagnosisCard, OfferCard, PhoneCall, ResultCard } from './ui/CaseUI';
 
 /*
  * Máquina de estados de un caso clínico:
@@ -35,7 +36,8 @@ type Flow =
   | { t: 'diagnosis'; c: Case; scores: number[]; wrong: string[] }
   | { t: 'treat'; c: Case; scores: number[]; wrong: string[] }
   | { t: 'apply'; c: Case; scores: number[]; wrong: string[]; option: TreatmentOption }
-  | { t: 'result'; c: Case; stars: 1 | 2 | 3; coins: number; xp: number; onTime: boolean | null };
+  | { t: 'result'; c: Case; stars: 1 | 2 | 3; coins: number; xp: number; onTime: boolean | null }
+  | { t: 'adopt'; catId: string };
 
 const EMERGENCY_MIN_GAP = 55_000;
 const EMERGENCY_MAX_GAP = 110_000;
@@ -97,6 +99,24 @@ export default function GameFlow() {
     const s = useGameStore.getState();
     const npcId = s.currentInteraction;
     if (!npcId) return;
+
+    // Gatitos: acariciar (y a la 3.ª caricia, ofrecer adoptarlo)
+    if (isCatInteraction(npcId)) {
+      const catId = catIdFrom(npcId);
+      const cat = CAT_BY_ID[catId];
+      const first = !s.catsPetted[catId];
+      const n = s.petCatOnce(catId);
+      catPetAt.set(catId, performance.now() / 1000);
+      const p = catPositions.get(catId);
+      if (p) emit('hearts', new THREE.Vector3(p.x, p.y + 0.6, p.z), 8);
+      sfx.purr();
+      setTimeout(() => sfx.meow(catId.length), 250);
+      if (first) toast(`¡${cat.name} se unió a tu álbum de gatitos!`, '🐱');
+      else toast(`${cat.name} ronronea feliz`, '💕');
+      if (n === PETS_TO_ADOPT && s.petCat !== catId) setFlow({ t: 'adopt', catId });
+      return;
+    }
+
     const active = s.activeCase ? CASE_BY_ID[s.activeCase] : null;
 
     // 1) Es mi paciente: empezar a atender
@@ -267,6 +287,25 @@ export default function GameFlow() {
   // ─── Render ───
   let content: React.ReactNode = null;
   switch (flow.t) {
+    case 'adopt': {
+      const cat = CAT_BY_ID[flow.catId];
+      const current = useGameStore.getState().petCat;
+      content = (
+        <AdoptCard
+          name={cat.name}
+          text={cat.personality}
+          replacing={current ? CAT_BY_ID[current]?.name : null}
+          onYes={() => {
+            sfx.success();
+            useGameStore.getState().adoptCat(flow.catId);
+            toast(`¡${cat.name} ahora te acompaña!`, '🐾', { big: true });
+            setFlow({ t: 'idle' });
+          }}
+          onNo={close}
+        />
+      );
+      break;
+    }
     case 'chat':
       content = <ChatCard name={npcName(flow.npcId)} text={flow.text} onClose={close} />;
       break;

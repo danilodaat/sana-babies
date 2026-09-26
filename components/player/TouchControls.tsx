@@ -448,7 +448,7 @@ export default function TouchControls() {
         }}
         aria-label="Atender"
       >
-        {actionEnabled ? '❤️‍🩹' : '👋'}
+        {actionEnabled ? (currentInteraction?.startsWith('cat:') ? '🐾' : '❤️‍🩹') : '👋'}
       </div>
     </div>
   );

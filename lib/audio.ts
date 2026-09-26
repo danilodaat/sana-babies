@@ -230,6 +230,60 @@ export const sfx = {
     bell(midi(84), 0.25, 0.22, t);
     bell(midi(91), 0.3, 0.18, t + 0.07);
   },
+  /** Maullido: sube y baja de tono con un filtro que imita la boca ("mi-au") */
+  meow(variant = 0) {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    const base = 620 + (variant % 5) * 70;
+    const osc = c.createOscillator();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(base * 0.8, t);
+    osc.frequency.exponentialRampToValueAtTime(base * 1.25, t + 0.12);
+    osc.frequency.exponentialRampToValueAtTime(base * 0.7, t + 0.42);
+    const f = c.createBiquadFilter();
+    f.type = 'bandpass';
+    f.Q.value = 3;
+    f.frequency.setValueAtTime(900, t);
+    f.frequency.exponentialRampToValueAtTime(1900, t + 0.14);
+    f.frequency.exponentialRampToValueAtTime(700, t + 0.42);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.04);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.46);
+    osc.connect(f).connect(g).connect(sfxBus);
+    osc.start(t);
+    osc.stop(t + 0.5);
+  },
+  /** Ronroneo: ruido grave con un temblor de ~26 Hz */
+  purr() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    const src = c.createBufferSource();
+    src.buffer = noiseBuffer;
+    src.loop = true;
+    const lp = c.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 180;
+    const am = c.createGain();
+    am.gain.value = 0;
+    const lfo = c.createOscillator();
+    lfo.frequency.value = 26;
+    const lfoGain = c.createGain();
+    lfoGain.gain.value = 0.5;
+    lfo.connect(lfoGain).connect(am.gain);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.9, t + 0.15);
+    g.gain.setValueAtTime(0.9, t + 1.1);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 1.6);
+    src.connect(lp).connect(am).connect(g).connect(sfxBus);
+    src.start(t);
+    lfo.start(t);
+    src.stop(t + 1.7);
+    lfo.stop(t + 1.7);
+  },
   alarm() {
     const c = ensure();
     if (!c) return;

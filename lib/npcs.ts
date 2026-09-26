@@ -29,6 +29,7 @@ export const NPCS: NpcDef[] = [
     position: [0, 0, -3.3], // Emergencias (piso 1), en el mesón de triage
     chat: [
       'Pediatría está en el piso 2 y Maternidad en el 3. ¡Usa el ascensor 🛗 o la escalera!',
+      'Hay 7 gatitos paseando por la ciudad. ¡Acarícialos con 🐾 y alguno querrá seguirte!',
       'Si eliges el tratamiento correcto a la primera, ¡ganas más estrellas!',
       'En emergencias, sigue la flecha roja. La ambulancia te acompaña.',
       'Con el Kit de precisión de la farmacia, los exámenes son más fáciles.',

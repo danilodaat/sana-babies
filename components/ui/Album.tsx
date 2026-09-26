@@ -4,6 +4,8 @@ import { useGameStore, ALBUM_PATIENTS } from '@/store/gameStore';
 import { CASES } from '@/lib/cases';
 import { NPC_BY_ID } from '@/lib/npcs';
 import { sfx } from '@/lib/audio';
+import { CATS } from '@/lib/cats';
+import { useState } from 'react';
 
 const KIND_EMOJI: Record<string, string> = { baby: '👶', girl: '👧', boy: '👦', mother: '👩', father: '👨', nurse: '👩‍⚕️' };
 
@@ -14,6 +16,10 @@ export default function Album() {
   const npcHealed = useGameStore((s) => s.npcHealed);
   const caseStars = useGameStore((s) => s.caseStars);
   const patientsHealed = useGameStore((s) => s.patientsHealed);
+  const catsPetted = useGameStore((s) => s.catsPetted);
+  const petCat = useGameStore((s) => s.petCat);
+  const adoptCat = useGameStore((s) => s.adoptCat);
+  const [tab, setTab] = useState<'pacientes' | 'gatitos'>('pacientes');
 
   if (panel !== 'album') return null;
 
@@ -30,14 +36,62 @@ export default function Album() {
       >
         <div className="flex items-center justify-between">
           <div>
-            <div className="text-lg font-extrabold text-pink-600">📔 Álbum de pacientes</div>
-            <div className="text-xs text-gray-500">{patientsHealed} curaciones en total</div>
+            <div className="text-lg font-extrabold text-pink-600">{tab === 'gatitos' ? '🐱 Álbum de gatitos' : '📔 Álbum de pacientes'}</div>
+            <div className="text-xs text-gray-500">
+              {tab === 'gatitos' ? 'Acaricia 3 veces a un gatito para adoptarlo' : `${patientsHealed} curaciones en total`}
+            </div>
           </div>
           <button className="w-9 h-9 rounded-full bg-gray-100 text-gray-500 font-bold" onClick={() => { sfx.click(); setPanel(null); }} aria-label="Cerrar">
             ✕
           </button>
         </div>
 
+        <div className="flex gap-1.5">
+          {(['pacientes', 'gatitos'] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => { sfx.click(); setTab(t); }}
+              className="px-3 py-1.5 rounded-full text-xs font-extrabold"
+              style={{ background: tab === t ? '#ec4899' : '#fce7f3', color: tab === t ? '#fff' : '#be185d' }}
+            >
+              {t === 'pacientes' ? '👶 Pacientes' : `🐱 Gatitos ${CATS.filter((c) => catsPetted[c.id]).length}/${CATS.length}`}
+            </button>
+          ))}
+        </div>
+
+        {tab === 'gatitos' && (
+          <div className="grid grid-cols-3 gap-2 overflow-y-auto pr-1" style={{ minHeight: 0 }}>
+            {CATS.map((c) => {
+              const n = catsPetted[c.id] ?? 0;
+              const known = n > 0;
+              const mine = petCat === c.id;
+              return (
+                <button
+                  key={c.id}
+                  disabled={!known}
+                  onClick={() => {
+                    sfx.click();
+                    adoptCat(mine ? null : n >= 3 ? c.id : petCat);
+                  }}
+                  className="flex flex-col items-center gap-0.5 rounded-2xl p-2 text-center"
+                  style={{ background: known ? '#fff' : '#f3f4f6', boxShadow: mine ? '0 0 0 3px #ec4899' : known ? '0 0 0 2px #fbcfe8, 0 3px 0 #f9a8d4' : 'inset 0 0 0 2px #e5e7eb' }}
+                >
+                  <span className="text-4xl" style={{ filter: known ? 'none' : 'brightness(0) opacity(0.25)' }}>🐱</span>
+                  <span className="w-5 h-2 rounded-full" style={{ background: known ? c.fur : '#e5e7eb', boxShadow: known ? `inset 0 0 0 2px ${c.accent}` : 'none' }} />
+                  <span className="text-xs font-extrabold text-gray-800">{known ? c.name : '???'}</span>
+                  <span className="text-[10px] text-gray-500 leading-tight">{known ? `${n} caricia${n === 1 ? '' : 's'}` : 'Búscalo en la ciudad'}</span>
+                  {known && (
+                    <span className="text-[10px] font-bold" style={{ color: mine ? '#db2777' : '#9ca3af' }}>
+                      {mine ? '🐾 Te acompaña · tocar para soltar' : n >= 3 ? 'Tocar para adoptar' : `Faltan ${3 - n} para adoptar`}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {tab === 'pacientes' && (<>
         <div>
           <div className="flex justify-between text-xs font-extrabold text-pink-700 mb-1">
             <span>
@@ -85,6 +139,7 @@ export default function Album() {
             );
           })}
         </div>
+        </>)}
       </div>
     </div>
   );

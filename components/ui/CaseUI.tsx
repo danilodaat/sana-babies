@@ -133,6 +133,27 @@ export function PhoneCall({ c, onAccept, onReject }: { c: Case; onAccept: () => 
   );
 }
 
+// ─── Adoptar un gatito ───
+export function AdoptCard({ name, text, replacing, onYes, onNo }: { name: string; text: string; replacing: string | null; onYes: () => void; onNo: () => void }) {
+  return (
+    <Sheet>
+      <div className="text-5xl" style={{ animation: 'sb-bob 1.4s ease-in-out infinite' }}>
+        🐱
+      </div>
+      <div className="text-xl font-extrabold text-violet-700">¡{name} te quiere mucho!</div>
+      <div className="text-sm text-gray-600 leading-snug">{text}</div>
+      <div className="text-sm font-bold text-gray-700">¿Quieres que {name} te acompañe a todas partes?</div>
+      {replacing && <div className="text-xs text-amber-700">{replacing} volverá a su casita (lo puedes adoptar de nuevo cuando quieras).</div>}
+      <div className="flex gap-2 w-full mt-1">
+        <Btn variant="ghost" onClick={onNo}>
+          Ahora no
+        </Btn>
+        <Btn onClick={onYes}>¡Sí, adoptar!</Btn>
+      </div>
+    </Sheet>
+  );
+}
+
 // ─── Charla simple ───
 export function ChatCard({ name, text, onClose }: { name: string; text: string; onClose: () => void }) {
   return (

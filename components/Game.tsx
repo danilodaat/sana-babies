@@ -38,6 +38,8 @@ import Shop from './ui/Shop';
 import Album from './ui/Album';
 import Tutorial from './ui/Tutorial';
 import Elevator from './ui/Elevator';
+import Cat from './cats/Cat';
+import { CATS } from '@/lib/cats';
 import { HudButtons, Toaster } from './ui/Hud';
 import { useGameStore } from '@/store/gameStore';
 
@@ -162,6 +164,9 @@ export default function Game() {
             <Zones />
             <HospitalDecor />
             <HospitalDoor />
+            {CATS.map((c) => (
+              <Cat key={c.id} def={c} />
+            ))}
             <ObjectiveArrow />
             <Foliage />
             <Sky />
