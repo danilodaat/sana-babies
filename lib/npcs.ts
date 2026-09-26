@@ -30,6 +30,7 @@ export const NPCS: NpcDef[] = [
     chat: [
       'Pediatría está en el piso 2 y Maternidad en el 3. ¡Usa el ascensor 🛗 o la escalera!',
       'Hay 7 gatitos paseando por la ciudad. ¡Acarícialos con 🐾 y alguno querrá seguirte!',
+      'Si tu paciente está lejos, súbete a una ambulancia 🚑: están en la base, saliendo por la puerta lateral de Emergencias.',
       'Si eliges el tratamiento correcto a la primera, ¡ganas más estrellas!',
       'En emergencias, sigue la flecha roja. La ambulancia te acompaña.',
       'Con el Kit de precisión de la farmacia, los exámenes son más fáciles.',

@@ -6,6 +6,7 @@ import { useGameStore } from '@/store/gameStore';
 import { CASE_BY_ID, availableStoryCases, emergencyPool, isEmergency, scoreCase, zoneIn, zoneTo, type Case, type TreatmentOption } from '@/lib/cases';
 import { NPC_BY_ID, npcName } from '@/lib/npcs';
 import { CAT_BY_ID, PETS_TO_ADOPT, catIdFrom, catPetAt, catPositions, isCatInteraction } from '@/lib/cats';
+import { ambIdFrom, boardAmbulance, isAmbInteraction } from './world/Ambulances';
 import { getObjective, nearestNpc, waypointFor } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
@@ -99,6 +100,12 @@ export default function GameFlow() {
     const s = useGameStore.getState();
     const npcId = s.currentInteraction;
     if (!npcId) return;
+
+    // Ambulancia: subirse y que te lleve con tu paciente
+    if (isAmbInteraction(npcId)) {
+      boardAmbulance(ambIdFrom(npcId));
+      return;
+    }
 
     // Gatitos: acariciar (y a la 3.ª caricia, ofrecer adoptarlo)
     if (isCatInteraction(npcId)) {

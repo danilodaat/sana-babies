@@ -231,7 +231,7 @@ function Rail({ a, b, y = 0 }: { a: [number, number]; b: [number, number]; y?: n
 }
 
 /** Letrero con emoji + texto dibujado en canvas */
-function Sign({ text, emoji, color, position, width = 6 }: { text: string; emoji: string; color: string; position: [number, number, number]; width?: number }) {
+function Sign({ text, emoji, color, position, width = 6, rotation = 0 }: { text: string; emoji: string; color: string; position: [number, number, number]; width?: number; rotation?: number }) {
   const tex = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = 512;
@@ -257,7 +257,7 @@ function Sign({ text, emoji, color, position, width = 6 }: { text: string; emoji
     return t;
   }, [text, emoji, color]);
   return (
-    <mesh position={position} userData={{ noToon: true }}>
+    <mesh position={position} rotation={[0, rotation, 0]} userData={{ noToon: true }}>
       <planeGeometry args={[width, width / 4]} />
       <meshBasicMaterial map={tex} toneMapped={false} />
     </mesh>
@@ -331,12 +331,41 @@ function Walls({ level }: { level: number }) {
         </mesh>
       </group>
 
-      {/* Costado este (E) */}
+      {/* Costado este (E) — en el piso 1 tiene la puerta a la base de ambulancias */}
       <group ref={register(level, 'E')} userData={{ batchLocal: true }}>
-        <mesh castShadow position={[W / 2, H / 2, 0]}>
-          <boxGeometry args={[T, H, D]} />
-          <meshStandardMaterial color="#F5F5F5" />
-        </mesh>
+        {level === 0 ? (
+          <>
+            <mesh castShadow position={[W / 2, H / 2, -(D / 2 + 1.6) / 2]}>
+              <boxGeometry args={[T, H, D / 2 - 1.6]} />
+              <meshStandardMaterial color="#F5F5F5" />
+            </mesh>
+            <mesh castShadow position={[W / 2, H / 2, (D / 2 + 1.6) / 2]}>
+              <boxGeometry args={[T, H, D / 2 - 1.6]} />
+              <meshStandardMaterial color="#F5F5F5" />
+            </mesh>
+            <mesh castShadow position={[W / 2, 3.9, 0]}>
+              <boxGeometry args={[T, 1.2, 3.2]} />
+              <meshStandardMaterial color="#F5F5F5" />
+            </mesh>
+            {/* Techo de la base de ambulancias */}
+            <mesh castShadow position={[W / 2 + 3.4, 4.1, 0]}>
+              <boxGeometry args={[6.4, 0.25, 17]} />
+              <meshStandardMaterial color="#ef5350" />
+            </mesh>
+            {[-8, 8].map((z) => (
+              <mesh key={z} castShadow position={[W / 2 + 3.4, 2.05, z]}>
+                <cylinderGeometry args={[0.12, 0.12, 4.1, 8]} />
+                <meshStandardMaterial color="#eceff1" />
+              </mesh>
+            ))}
+            <Sign text="Ambulancias" emoji="🚑" color="#ef5350" position={[W / 2 + T / 2 + 0.06, 3.9, 0]} width={3.2} rotation={Math.PI / 2} />
+          </>
+        ) : (
+          <mesh castShadow position={[W / 2, H / 2, 0]}>
+            <boxGeometry args={[T, H, D]} />
+            <meshStandardMaterial color="#F5F5F5" />
+          </mesh>
+        )}
         <mesh position={[W / 2 + T / 2 + 0.02, H - 0.25, 0]}>
           <boxGeometry args={[0.05, 0.3, D]} />
           {band}

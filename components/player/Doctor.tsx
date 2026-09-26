@@ -14,6 +14,7 @@ import { ITEM_BY_ID } from '@/lib/shop';
 import { getToonGradient } from '@/components/fx/Toonify';
 import { BlobShadow } from '@/components/fx/Shadows';
 import { stairHeightAt } from '@/lib/hospital';
+import { fleet } from '@/components/world/Ambulances';
 
 const MOVE_SPEED = 4.6;
 const ACCEL = 14; // qué tan rápido alcanza la velocidad (1/s)
@@ -123,6 +124,20 @@ export default function Doctor() {
     const rb = rigidBodyRef.current;
     if (!rb || !groupRef.current || !bodyRef.current) return;
     const delta = Math.min(rawDelta, 0.05);
+
+    // ─── Viajando en ambulancia: el doctor va adentro ───
+    const riding = useGameStore.getState().riding;
+    groupRef.current.visible = riding === null;
+    if (riding !== null) {
+      const u = fleet[riding];
+      rb.setTranslation({ x: u.pos.x, y: 0.3, z: u.pos.z }, true);
+      rb.setLinvel({ x: 0, y: 0, z: 0 }, true);
+      player.position.set(u.pos.x, 0.05, u.pos.z);
+      player.velocity.set(Math.sin(u.heading) * 8, 0, Math.cos(u.heading) * 8);
+      player.speed01 = 0.6;
+      player.grounded = true;
+      return;
+    }
 
     // ─── Input: joystick táctil + teclado ───
     let ix = input.touch.x;

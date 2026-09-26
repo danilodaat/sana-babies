@@ -60,6 +60,8 @@ interface GameState {
   catsPetted: Record<string, number>;
   /** Gatito adoptado que sigue al doctor */
   petCat: string | null;
+  /** Ambulancia en la que viaja el doctor (null = a pie) */
+  riding: number | null;
   /** UI abierta desde el HUD */
   panel: 'shop' | 'album' | null;
 
@@ -87,6 +89,7 @@ interface GameState {
   setTutorialStep: (step: number) => void;
   petCatOnce: (catId: string) => number;
   adoptCat: (catId: string | null) => void;
+  setRiding: (unit: number | null) => void;
   setPanel: (panel: 'shop' | 'album' | null) => void;
   cancelEmergency: () => void;
   addCoins: (amount: number) => void;
@@ -171,6 +174,7 @@ export const useGameStore = create<GameState>()(
       ...initialProgress,
       levelUp: null,
       panel: null,
+      riding: null,
       muted: false,
       quality: defaultQuality(),
 
@@ -234,6 +238,8 @@ export const useGameStore = create<GameState>()(
         return n;
       },
       adoptCat: (petCat) => set({ petCat }),
+      // Mientras viaja, el doctor no camina ni suena el teléfono (modal)
+      setRiding: (riding) => set({ riding, modal: riding !== null, currentInteraction: null }),
       setPanel: (panel) => set({ panel, modal: panel !== null }),
 
       cancelEmergency: () => set({ activeCase: null, emergency: null, lastCaseEndedAt: Date.now() }),

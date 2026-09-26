@@ -59,7 +59,9 @@ export default function CameraFollow() {
       offset.current
         .copy(CAMERA_OFFSET)
         .lerp(INDOOR_OFFSET, indoor.current)
-        .multiplyScalar((1 + speed * 0.12) * (1 + (portrait - 1) * (1 - indoor.current * 0.6)) * input.cameraZoom);
+        .multiplyScalar(
+          (1 + speed * 0.12) * (1 + (portrait - 1) * (1 - indoor.current * 0.6)) * input.cameraZoom * (useGameStore.getState().riding !== null ? 1.45 : 1),
+        );
       // Inclinación elegida por el jugador: sube o baja la cámara
       const pitch = THREE.MathUtils.lerp(0.4, 1.6, input.cameraPitch);
       offset.current.y *= pitch;

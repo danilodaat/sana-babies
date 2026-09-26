@@ -4,7 +4,7 @@ import { useEffect, useRef } from 'react';
 import { useGameStore } from '@/store/gameStore';
 import { player, input, npcPositions } from '@/lib/runtime';
 import { getObjective } from '@/lib/objective';
-import { ambulance } from '@/components/world/Ambulance';
+import { fleet } from '@/components/world/Ambulances';
 import { BUILDINGS, HOSPITAL, LABELS, PARK, POND, ROADS, type Rect } from '@/lib/mapData';
 
 /*
@@ -89,10 +89,10 @@ export default function Minimap() {
         ctx.fillText(l.text, x, y);
       });
 
-      // Ambulancia
-      if (ambulance.moving || ambulance.atScene) {
-        const [x, y] = toScreen(ambulance.position.x, ambulance.position.z);
-        ctx.font = '12px system-ui, sans-serif';
+      // Ambulancias
+      ctx.font = '12px system-ui, sans-serif';
+      for (const u of fleet) {
+        const [x, y] = toScreen(u.pos.x, u.pos.z);
         ctx.fillText('🚑', x, y);
       }
 

@@ -25,7 +25,8 @@ import Particles from './fx/Particles';
 import PostFX from './fx/PostFX';
 import LevelUp from './ui/LevelUp';
 import Minimap from './ui/Minimap';
-import Ambulance, { ambulance } from './world/Ambulance';
+import Ambulances, { fleet } from './world/Ambulances';
+import RideOverlay from './ui/RideOverlay';
 import ObjectiveArrow from './fx/ObjectiveArrow';
 import { NPCS } from '@/lib/npcs';
 import Zones from './world/Zones';
@@ -98,7 +99,7 @@ export default function Game() {
   // ?debug expone el runtime en la consola (adelantar la hora, teletransportar, etc.)
   useEffect(() => {
     if (new URLSearchParams(window.location.search).has('debug')) {
-      (window as unknown as Record<string, unknown>).__sb = { ...runtime, store: useGameStore, ambulance };
+      (window as unknown as Record<string, unknown>).__sb = { ...runtime, store: useGameStore, fleet };
     }
   }, []);
 
@@ -115,6 +116,7 @@ export default function Game() {
           <Album />
           <Tutorial />
           <Elevator />
+          <RideOverlay />
         </div>
       )}
       <LevelUp />
@@ -160,7 +162,7 @@ export default function Game() {
               <CameraFollow />
             </Physics>
 
-            <Ambulance />
+            <Ambulances />
             <Zones />
             <HospitalDecor />
             <HospitalDoor />
