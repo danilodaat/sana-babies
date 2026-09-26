@@ -7,6 +7,7 @@ import { CASE_BY_ID, availableStoryCases, emergencyPool, isEmergency, scoreCase,
 import { NPC_BY_ID, npcName } from '@/lib/npcs';
 import { CAT_BY_ID, PETS_TO_ADOPT, catIdFrom, catPetAt, catPositions, isCatInteraction } from '@/lib/cats';
 import { ambIdFrom, boardAmbulance, isAmbInteraction } from './world/Ambulances';
+import { WALKER_BY_ID, isWalkerInteraction, walkerIdFrom, walkerWaveAt } from '@/lib/walkers';
 import { getObjective, nearestNpc, waypointFor } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
@@ -100,6 +101,17 @@ export default function GameFlow() {
     const s = useGameStore.getState();
     const npcId = s.currentInteraction;
     if (!npcId) return;
+
+    // Vecinos: saludan con la mano (sin abrir diálogo)
+    if (isWalkerInteraction(npcId)) {
+      const w = WALKER_BY_ID[walkerIdFrom(npcId)];
+      if (w) {
+        walkerWaveAt.set(w.id, performance.now() / 1000);
+        sfx.pop();
+        toast(`${w.name}: ${pick(w.lines)}`, w.kid ? '🧒' : '👋');
+      }
+      return;
+    }
 
     // Ambulancia: subirse y que te lleve con tu paciente
     if (isAmbInteraction(npcId)) {

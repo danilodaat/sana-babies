@@ -80,7 +80,7 @@ for (const [a, b] of EDGES) {
 }
 
 /** Camino más corto entre dos esquinas (lista de ids, incluye ambas puntas) */
-export function shortestPath(from: string, to: string): string[] {
+export function shortestPath(from: string, to: string, avoid?: Set<string>): string[] {
   if (from === to) return [from];
   const dist = new Map<string, number>([[from, 0]]);
   const prev = new Map<string, string>();
@@ -92,6 +92,7 @@ export function shortestPath(from: string, to: string): string[] {
     todo.delete(u);
     if (u === to) break;
     for (const { to: v, w } of adj.get(u) ?? []) {
+      if (avoid?.has(v) && v !== to) continue;
       const d = dist.get(u)! + w;
       if (d < (dist.get(v) ?? Infinity)) {
         dist.set(v, d);
@@ -109,11 +110,12 @@ export function shortestPath(from: string, to: string): string[] {
 }
 
 /** Esquina más cercana a un punto */
-export function nearestNode(x: number, z: number, onlyLabeled = false): RoadNode {
+export function nearestNode(x: number, z: number, onlyLabeled = false, avoid?: Set<string>): RoadNode {
   let best = NODES[0];
   let bd = Infinity;
   for (const n of NODES) {
     if (onlyLabeled && !n.label) continue;
+    if (avoid?.has(n.id)) continue;
     const d = Math.hypot(n.x - x, n.z - z);
     if (d < bd) {
       bd = d;
@@ -138,3 +140,7 @@ export const BAY_SLOTS: [number, number][] = [
   [17.3, 0.2],
   [17.3, 5.4],
 ];
+
+/** Los autos no pasan por la base de ambulancias (se evita ese tramo de la avenida N-S) */
+export const CAR_AVOID = new Set(['base', 'PH']);
+export const CAR_NODES = NODES.filter((n) => !CAR_AVOID.has(n.id));

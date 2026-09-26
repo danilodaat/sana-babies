@@ -284,6 +284,16 @@ export const sfx = {
     src.stop(t + 1.7);
     lfo.stop(t + 1.7);
   },
+  /** Bocina simpática de auto ("bip bip") */
+  honk() {
+    const c = ensure();
+    if (!c) return;
+    const t = c.currentTime;
+    [0, 0.18].forEach((d) => {
+      tone(415, 0.12, { type: 'square', vol: 0.07, when: t + d });
+      tone(523, 0.12, { type: 'square', vol: 0.05, when: t + d });
+    });
+  },
   alarm() {
     const c = ensure();
     if (!c) return;

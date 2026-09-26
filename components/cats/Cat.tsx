@@ -120,7 +120,9 @@ export default function Cat({ def }: { def: CatDef }) {
     // Luna es trasnochadora: duerme la siesta al mediodía y está despierta de noche
     const sleepy = nightOwl ? world.time > 0.42 && world.time < 0.58 : world.night > 0.65;
     const pet = useGameStore.getState().petCat === def.id;
-    const cheering = t - (catPetAt.get(def.id) ?? -99) < 1.4;
+    // catPetAt se marca con performance.now() (desde la UI): comparar con el mismo reloj
+    const nowS = performance.now() / 1000;
+    const cheering = nowS - (catPetAt.get(def.id) ?? -99) < 1.4;
 
     if (pet) state.current = 'follow';
     else if (state.current === 'follow') state.current = 'sit';
@@ -203,12 +205,14 @@ export default function Cat({ def }: { def: CatDef }) {
     r.position.copy(p);
     r.rotation.y = heading.current;
     catPositions.set(def.id, p);
+    // Lejos (>45 m, ya tapado por la niebla) no se dibuja: ahorra draw calls en celular
+    r.visible = dist < 45 || state.current === 'follow';
 
     // ─── Poses ───
     const moving = speed > 0.05;
     const sitting = !moving && (state.current === 'sit' || state.current === 'curious' || state.current === 'groom' || state.current === 'follow');
     const sleep = state.current === 'sleep';
-    const cheer = cheering ? Math.abs(Math.sin((t - (catPetAt.get(def.id) ?? 0)) * 9)) * 0.22 : 0;
+    const cheer = cheering ? Math.abs(Math.sin((nowS - (catPetAt.get(def.id) ?? 0)) * 9)) * 0.22 : 0;
     b.position.y = damp(b.position.y, (sleep ? -0.1 : sitting ? 0.03 : 0) + cheer + (moving ? Math.abs(Math.sin(phase.current * 2)) * 0.02 : 0), 12, dt);
     b.rotation.x = damp(b.rotation.x, sitting ? -0.45 : sleep ? 0 : 0, 8, dt);
     b.rotation.z = damp(b.rotation.z, sleep ? 0.9 : 0, 5, dt);

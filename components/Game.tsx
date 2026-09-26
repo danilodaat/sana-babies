@@ -27,6 +27,10 @@ import LevelUp from './ui/LevelUp';
 import Minimap from './ui/Minimap';
 import Ambulances, { fleet } from './world/Ambulances';
 import RideOverlay from './ui/RideOverlay';
+import Town from './world/Town';
+import Traffic from './world/Traffic';
+import Walker from './people/Walker';
+import { WALKERS } from '@/lib/walkers';
 import ObjectiveArrow from './fx/ObjectiveArrow';
 import { NPCS } from '@/lib/npcs';
 import Zones from './world/Zones';
@@ -149,6 +153,7 @@ export default function Game() {
               <City />
               <School />
               <Residencial />
+              <Town />
               <Playground />
               <Doctor />
               {/* NPCs (definidos en lib/npcs.ts) */}
@@ -169,6 +174,10 @@ export default function Game() {
             {CATS.map((c) => (
               <Cat key={c.id} def={c} />
             ))}
+            {WALKERS.map((w) => (
+              <Walker key={w.id} def={w} />
+            ))}
+            <Traffic />
             <ObjectiveArrow />
             <Foliage />
             <Sky />

@@ -4,6 +4,7 @@ import { useLayoutEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
+import { TOWN } from '@/lib/mapData';
 
 /*
  * Pasto y flores instanciados que se mecen con el viento (shader).
@@ -39,6 +40,11 @@ const BLOCKED: [number, number, number, number][] = [
 function blocked(x: number, z: number) {
   for (const [bx, bz, hw, hd] of BLOCKED) {
     if (Math.abs(x - bx) < hw && Math.abs(z - bz) < hd) return true;
+  }
+  // Edificios del barrio nuevo (y cualquiera que se sume a mapData)
+  for (const b of TOWN) {
+    const [bx, bz, w, d] = b.rect;
+    if (Math.abs(x - bx) < w / 2 + 1.5 && Math.abs(z - bz) < d / 2 + 2.5) return true;
   }
   return false;
 }
