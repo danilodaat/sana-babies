@@ -5,6 +5,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { getToonGradient } from './Toonify';
+import { setHiddenSelf } from '@/lib/hide';
 
 /*
  * Fusión de geometría: de ~1.300 meshes visibles a unas decenas de draw calls.
@@ -109,8 +110,10 @@ function build(groups: Map<string, Entry>, parent: THREE.Object3D) {
     parent.add(m);
     merged++;
     for (const src of entry.sources) {
-      src.visible = false;
+      // Oculta por capa (no con visible=false: la física necesita verla para su colisión)
+      setHiddenSelf(src, true);
       src.userData.batched = true;
+      src.userData.batchedSource = true;
       hidden++;
     }
   }

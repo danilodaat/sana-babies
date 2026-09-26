@@ -6,6 +6,7 @@ import { RigidBody } from '@react-three/rapier';
 import * as THREE from 'three';
 import { FLOORS, FLOOR_H, HOSP_D, HOSP_W, SLAB, STAIRS, ELEVATOR, floorOf, insideHospital } from '@/lib/hospital';
 import { player } from '@/lib/runtime';
+import { setHidden } from '@/lib/hide';
 
 /*
  * Hospital Sana de 3 pisos: Emergencias (1), Pediatría (2), Maternidad (3).
@@ -22,7 +23,7 @@ const H = FLOOR_H;
 const T = 0.4; // grosor de muro
 
 type Side = 'N' | 'S' | 'E' | 'W';
-export const hospitalParts: { id: string; level: number; side: Side | null; obj: THREE.Object3D }[] = [];
+export const hospitalParts: { id: string; level: number; side: Side | null; obj: THREE.Object3D; hidden?: boolean }[] = [];
 const register = (level: number, side: Side | null, tag = '') => (obj: THREE.Object3D | null) => {
   if (!obj) return;
   const id = `${level}:${side ?? '-'}:${tag}`;
@@ -570,6 +571,8 @@ function HospitalCutaway() {
     const inside = insideHospital(player.position.x, player.position.z);
     const floor = floorOf(player.position.y);
     const c = camera.position;
+    let changed = false;
+    const want = new Map<string, boolean>();
     for (const p of hospitalParts) {
       let visible = true;
       if (inside) {
@@ -582,7 +585,17 @@ function HospitalCutaway() {
           if (p.side === 'W') visible = c.x > -W / 2 + 0.5;
         }
       }
-      if (p.obj.visible !== visible) p.obj.visible = visible;
+      want.set(p.id, !visible);
+      if (p.hidden !== !visible) changed = true;
+    }
+    if (!changed) return;
+    // Aplicar primero los pisos completos y después paredes/escaleras (que están adentro)
+    const isWholeFloor = (p: (typeof hospitalParts)[number]) => p.side === null && p.id.endsWith(':');
+    const ordered = [...hospitalParts].sort((a, b) => Number(!isWholeFloor(a)) - Number(!isWholeFloor(b)));
+    for (const p of ordered) {
+      const h = want.get(p.id)!;
+      setHidden(p.obj, h);
+      p.hidden = h;
     }
   });
   return null;

@@ -67,6 +67,8 @@ export default function Doctor() {
   const [, getKeys] = useKeyboardControls();
   const { world, rapier } = useRapier();
   const ray = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }), [rapier]);
+  const stepRay = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 1, y: 0, z: 0 }), [rapier]);
+  const stepDown = useMemo(() => new rapier.Ray({ x: 0, y: 0, z: 0 }, { x: 0, y: -1, z: 0 }), [rapier]);
 
   // Memoize materials so they don't re-create each frame
   const materials = useMemo(
@@ -201,6 +203,29 @@ export default function Doctor() {
     if (stairY !== null && vy <= 0.5) {
       rb.setTranslation({ x: pos.x, y: stairY, z: pos.z }, true);
       vy = 0;
+    }
+
+    // Escalones bajos (borde de la vereda, tapetes, bases): subirlos solo, como en cualquier juego.
+    // Rayo a los tobillos choca + rayo a las rodillas libre = escalón; se mide su altura y se sube.
+    const hv = Math.hypot(vel.current.x, vel.current.z);
+    if (grounded && stairY === null && hv > 0.4 && vy < 1) {
+      const dx = vel.current.x / hv;
+      const dz = vel.current.z / hv;
+      const flags = rapier.QueryFilterFlags.EXCLUDE_SENSORS;
+      stepRay.dir = { x: dx, y: 0, z: dz };
+      stepRay.origin = { x: pos.x, y: pos.y + 0.06, z: pos.z };
+      const low = world.castRay(stepRay, 0.5, true, flags, undefined, undefined, rb);
+      if (low) {
+        stepRay.origin = { x: pos.x, y: pos.y + 0.45, z: pos.z };
+        const high = world.castRay(stepRay, 0.7, true, flags, undefined, undefined, rb);
+        if (!high) {
+          const ahead = Math.min(low.timeOfImpact + 0.12, 0.6);
+          stepDown.origin = { x: pos.x + dx * ahead, y: pos.y + 0.45, z: pos.z + dz * ahead };
+          const top = world.castRay(stepDown, 0.45, true, flags, undefined, undefined, rb);
+          const h = top ? 0.45 - top.timeOfImpact : 0;
+          if (h > 0.02 && h < 0.4) rb.setTranslation({ x: pos.x, y: pos.y + h + 0.02, z: pos.z }, true);
+        }
+      }
     }
 
     rb.setLinvel({ x: vel.current.x, y: vy, z: vel.current.z }, true);
