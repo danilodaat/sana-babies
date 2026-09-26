@@ -13,6 +13,7 @@ import { sfx } from '@/lib/audio';
 import { ITEM_BY_ID } from '@/lib/shop';
 import { getToonGradient } from '@/components/fx/Toonify';
 import { BlobShadow } from '@/components/fx/Shadows';
+import { stairHeightAt } from '@/lib/hospital';
 
 const MOVE_SPEED = 4.6;
 const ACCEL = 14; // qué tan rápido alcanza la velocidad (1/s)
@@ -158,7 +159,7 @@ export default function Doctor() {
     ray.origin = { x: pos.x, y: pos.y + 0.15, z: pos.z };
     const hit = world.castRay(ray, 0.3, true, rapier.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, rb);
     const lin = rb.linvel();
-    const grounded = hit !== null && lin.y < 1.5;
+    const grounded = (hit !== null && lin.y < 1.5) || stairHeightAt(pos.x, pos.z, pos.y) !== null;
     if (grounded) airTime.current = 0;
     else airTime.current += delta;
 
@@ -178,6 +179,13 @@ export default function Doctor() {
         emit('dust', [pos.x, pos.y, pos.z], 6);
       }
       input.jumpQueued = false;
+    }
+
+    // Escalera del hospital: el doctor se pega a la rampa (subir y bajar sin física de escalones)
+    const stairY = stairHeightAt(pos.x, pos.z, pos.y);
+    if (stairY !== null && vy <= 0.5) {
+      rb.setTranslation({ x: pos.x, y: stairY, z: pos.z }, true);
+      vy = 0;
     }
 
     rb.setLinvel({ x: vel.current.x, y: vy, z: vel.current.z }, true);

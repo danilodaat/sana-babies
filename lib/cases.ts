@@ -76,6 +76,9 @@ const T = {
   massage: { id: 'massage', label: 'Masaje en la pancita', emoji: '👐' },
   itchCream: { id: 'itch-cream', label: 'Crema para la picazón', emoji: '🧴' },
   sting: { id: 'sting', label: 'Sacar el aguijón y poner hielo', emoji: '🧊' },
+  iceWrap: { id: 'ice-wrap', label: 'Hielo y vendaje', emoji: '🧊' },
+  newbornVaccine: { id: 'newborn-vaccine', label: 'Primera vacuna', emoji: '💉' },
+  blanket: { id: 'blanket', label: 'Gorrito y mantita', emoji: '🧣' },
 } satisfies Record<string, TreatmentOption>;
 
 export const CASES: Case[] = [
@@ -196,6 +199,72 @@ export const CASES: Case[] = [
     },
     thanks: '¡Ya puedo tragar sin que duela! Le voy a contar a toda la clase.',
     reward: { coins: 130, xp: 260 },
+  },
+
+  // ─── Hospital: Emergencias y Maternidad ───
+  {
+    id: 'case-tobillo-benja',
+    title: 'Tobillo torcido',
+    type: 'consulta',
+    zone: 'Hospital Sana',
+    giverId: 'kid-benja',
+    patientId: 'kid-benja',
+    minLevel: 2,
+    giverDialogue: '¡Ay! Salté de la cama elástica y se me dobló el pie. Está hinchado...',
+    description: 'Mira el tobillo de Benja en Emergencias y cúralo.',
+    exam: [],
+    findings: [{ emoji: '🦶', text: 'Tobillo hinchado: una torcedura, sin hueso roto' }],
+    treatment: {
+      options: [T.newbornVaccine, T.syrupThroat, T.iceWrap],
+      correct: 'ice-wrap',
+      hint: 'Un jarabe o una vacuna no bajan la hinchazón. ¿Qué se pone en una torcedura?',
+      game: 'bandaid',
+    },
+    thanks: '¡Qué fresquito el hielo! Ya puedo pisar un poquito.',
+    reward: { coins: 80, xp: 160 },
+  },
+  {
+    id: 'case-chequeo-tomi',
+    title: 'Primer chequeo de Tomi',
+    type: 'consulta',
+    zone: 'Maternidad',
+    giverId: 'mother-paula',
+    patientId: 'baby-tomi',
+    minLevel: 2,
+    giverDialogue: 'Doctor, ¡Tomi nació ayer! ¿Le hace su primer chequeo?',
+    description: 'Escucha el corazón del recién nacido en Maternidad (piso 3).',
+    exam: ['stethoscope'],
+    findings: [{ emoji: '❤️', text: 'Corazoncito fuerte y respiración tranquila' }],
+    treatment: {
+      options: [T.iceCream, T.newbornVaccine, T.bandaid],
+      correct: 'newborn-vaccine',
+      hint: '¡Tomi está sanito! Los recién nacidos reciben algo que los protege desde el primer día.',
+      game: 'vaccine',
+    },
+    thanks: '¡Gracias doctor! Tomi ya tiene su primera vacuna y durmió enseguida.',
+    reward: { coins: 90, xp: 190 },
+  },
+  {
+    id: 'case-frio-lia',
+    title: 'Lía tiene frío',
+    type: 'consulta',
+    zone: 'Maternidad',
+    giverId: 'mother-julia',
+    patientId: 'baby-lia',
+    minLevel: 3,
+    requires: ['case-chequeo-tomi'],
+    giverDialogue: 'Doctor, siento a Lía muy fría y tiembla un poquito...',
+    description: 'Tómale la temperatura a la bebé Lía en Maternidad (piso 3).',
+    exam: ['thermometer'],
+    findings: [{ emoji: '🌡️', text: '35.9 °C — está un poquito fría' }],
+    treatment: {
+      options: [T.shade, T.blanket, T.sunCream],
+      correct: 'blanket',
+      hint: 'La sombra y el suero son para el calor. ¿Qué la calienta suavecito?',
+      applyText: 'Gorrito de lana, mantita y un abrazo de mamá... ¡Lía ya está calentita!',
+    },
+    thanks: '¡Lía dejó de temblar y está sonriendo! Muchas gracias.',
+    reward: { coins: 110, xp: 230 },
   },
 
   // ─── Historia: nivel 4 (Residencial Sol) ───
@@ -350,7 +419,7 @@ export const CASE_BY_ID: Record<string, Case> = Object.fromEntries(CASES.map((c)
 
 export const isEmergency = (c: Case) => c.type === 'emergencia';
 
-const FEMININE_ZONES = ['Escuela', 'Guardería', 'Playa', 'Colinas'];
+const FEMININE_ZONES = ['Escuela', 'Guardería', 'Playa', 'Colinas', 'Maternidad'];
 /** "al Parque Central" / "a la Escuela Arcoíris" */
 export function zoneTo(zone: string) {
   return FEMININE_ZONES.some((z) => zone.startsWith(z)) ? `a la ${zone}` : `al ${zone}`;

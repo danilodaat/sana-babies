@@ -42,3 +42,6 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# Pruebas locales con Playwright (capturas y scripts)
+.qa/

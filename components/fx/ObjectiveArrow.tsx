@@ -4,7 +4,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
-import { getObjective, nearestNpc } from '@/lib/objective';
+import { getObjective, nearestNpc, waypointFor } from '@/lib/objective';
 import { npcPositions, player } from '@/lib/runtime';
 
 /*
@@ -49,9 +49,12 @@ export default function ObjectiveArrow() {
     const s = useGameStore.getState();
     const obj = s.started && !s.modal ? getObjective(s) : null;
     const target = obj ? nearestNpc(obj.ids) : null;
-    const p = target ? npcPositions.get(target.id) : null;
+    const npc = target ? npcPositions.get(target.id) : null;
+    const way = npc ? waypointFor(npc) : null;
+    const p = way?.pos ?? null;
+    const dist = p ? Math.hypot(p.x - player.position.x, p.z - player.position.z) : 0;
 
-    const visible = !!(obj && target && p && target.dist > 3.5);
+    const visible = !!(obj && target && p && dist > (way?.hint ? 1.2 : 3.5));
     fade.current += ((visible ? 1 : 0) - fade.current) * (1 - Math.exp(-8 * delta));
     material.opacity = fade.current * 0.9;
     g.visible = fade.current > 0.02;

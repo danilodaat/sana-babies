@@ -37,6 +37,7 @@ import HospitalDoor from './world/HospitalDoor';
 import Shop from './ui/Shop';
 import Album from './ui/Album';
 import Tutorial from './ui/Tutorial';
+import Elevator from './ui/Elevator';
 import { HudButtons, Toaster } from './ui/Hud';
 import { useGameStore } from '@/store/gameStore';
 
@@ -111,6 +112,7 @@ export default function Game() {
           <Shop />
           <Album />
           <Tutorial />
+          <Elevator />
         </div>
       )}
       <LevelUp />

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { world, player, DAY_LENGTH } from '@/lib/runtime';
 import { nightMaterials } from '@/components/fx/Toonify';
 import { useGameStore } from '@/store/gameStore';
+import { floorBase, floorOf, insideHospital } from '@/lib/hospital';
 
 /*
  * Ciclo día/noche: mueve el sol y la luna, interpola colores del cielo,
@@ -205,6 +206,8 @@ export default function DayNight() {
     const glow = THREE.MathUtils.smoothstep(world.night, 0.25, 0.8);
     // El hospital nunca se apaga: luz cálida interior al anochecer
     if (hospitalLight.current) {
+      const f = insideHospital(player.position.x, player.position.z) ? floorOf(player.position.y) : 0;
+      hospitalLight.current.position.y = floorBase(f) + 3.6;
       hospitalLight.current.intensity = glow * 2.2;
       hospitalLight.current.visible = glow > 0.01;
     }

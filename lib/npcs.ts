@@ -26,8 +26,9 @@ export const NPCS: NpcDef[] = [
     id: 'nurse-lucia',
     name: 'Enfermera Lucía',
     kind: 'nurse',
-    position: [0, 0, -3.3],
+    position: [0, 0, -3.3], // Emergencias (piso 1), en el mesón de triage
     chat: [
+      'Pediatría está en el piso 2 y Maternidad en el 3. ¡Usa el ascensor 🛗 o la escalera!',
       'Si eliges el tratamiento correcto a la primera, ¡ganas más estrellas!',
       'En emergencias, sigue la flecha roja. La ambulancia te acompaña.',
       'Con el Kit de precisión de la farmacia, los exámenes son más fáciles.',
@@ -39,14 +40,14 @@ export const NPCS: NpcDef[] = [
     id: 'baby-1',
     name: 'Luciana',
     kind: 'baby',
-    position: [5, 0.5, 5],
+    position: [5, 5.0, 5], // Pediatría (piso 2)
     chat: ['¡Hola doctor! Estoy jugando.', '¡Ga ga! 👶', '¡Me gusta tu bata blanca!'],
   },
   {
     id: 'baby-2',
     name: 'Mateo',
     kind: 'baby',
-    position: [-3, 0.5, -4],
+    position: [-3, 5.0, -3.2], // Pediatría
     color: '#B3E5FC',
     chat: ['¡Hola! ¿Quieres jugar conmigo?', '¡Ya no me duele nada!', '¿Me das otra curita de dinosaurio?'],
   },
@@ -54,7 +55,7 @@ export const NPCS: NpcDef[] = [
     id: 'parent-1',
     name: 'Rosa',
     kind: 'mother',
-    position: [-5, 0, 8],
+    position: [-5, 4.5, 7.6], // Pediatría
     hasBaby: true,
     chat: ['Gracias por cuidar a los niños, doctor.', 'En el parque siempre hay niños jugando.', 'Usted es el mejor doctor de Ciudad Sana.'],
   },
@@ -62,8 +63,52 @@ export const NPCS: NpcDef[] = [
     id: 'parent-2',
     name: 'Carlos',
     kind: 'father',
-    position: [8, 0, -3],
+    position: [8, 4.5, -2.6], // Pediatría
     chat: ['Buenos días, doctor.', 'La escuela Arcoíris queda al este, cruzando la avenida.', '¡Qué rápido corre usted, doctor!'],
+  },
+
+  // ─── Hospital · Emergencias (piso 1) ───
+  {
+    id: 'kid-benja',
+    name: 'Benja',
+    kind: 'boy',
+    position: [-7.6, 0, 2],
+    color: '#4DB6AC',
+    chat: ['¡Ya casi no me duele el pie!', 'Voy a saltar más despacito desde ahora.'],
+  },
+
+  // ─── Hospital · Maternidad (piso 3) ───
+  {
+    id: 'mother-paula',
+    name: 'Paula',
+    kind: 'mother',
+    position: [-7.4, 9, 1.4],
+    color: '#BA68C8',
+    chat: ['¡Tomi nació ayer! Es el bebé más lindo del mundo.', 'Las enfermeras de maternidad son un amor.'],
+  },
+  {
+    id: 'baby-tomi',
+    name: 'Tomi',
+    kind: 'baby',
+    position: [-7.4, 9.5, 3.4],
+    color: '#B3E5FC',
+    chat: ['*bosteza chiquitito*', '*agarra tu dedo con su manito*'],
+  },
+  {
+    id: 'mother-julia',
+    name: 'Julia',
+    kind: 'mother',
+    position: [1.4, 9, 5.6],
+    color: '#4FC3F7',
+    chat: ['Lía es mi primera bebé, ¡estoy tan feliz!', '¿Viste las cunitas? Ahí duermen los recién nacidos.'],
+  },
+  {
+    id: 'baby-lia',
+    name: 'Lía',
+    kind: 'baby',
+    position: [1.2, 9.5, 3.4],
+    color: '#F8BBD0',
+    chat: ['*hace ruiditos de bebé*', '*sonríe dormida*'],
   },
 
   // ─── Parque (-40, 38) ───

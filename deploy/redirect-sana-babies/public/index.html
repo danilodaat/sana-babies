@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sanna Babys se mudó</title>
+<meta name="robots" content="noindex">
+<style>
+  body { margin: 0; min-height: 100vh; display: flex; align-items: center; justify-content: center;
+         background: linear-gradient(145deg, #ff7aa8, #ff9a5a); font-family: system-ui, sans-serif; color: #fff; text-align: center; }
+  a { color: #fff; font-weight: 800; }
+</style>
+<script>
+  // sana-babies.vercel.app → sanna-babys.vercel.app
+  // La partida guardada vive en localStorage (atado al dominio): se manda en el link
+  // para que el juego nuevo la importe. También se apaga el service worker viejo.
+  (function () {
+    var dest = 'https://sanna-babys.vercel.app' + location.pathname + location.search;
+    var hash = '';
+    try {
+      var s = localStorage.getItem('sana-babies-save');
+      if (s) hash = '#save=' + encodeURIComponent(btoa(unescape(encodeURIComponent(s))));
+    } catch (e) {}
+    function go() { location.replace(dest + hash); }
+    try {
+      var jobs = [];
+      if (navigator.serviceWorker) jobs.push(navigator.serviceWorker.getRegistrations().then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); }));
+      if (window.caches) jobs.push(caches.keys().then(function (ks) { return Promise.all(ks.map(function (k) { return caches.delete(k); })); }));
+      Promise.all(jobs).then(go, go);
+      setTimeout(go, 1500);
+    } catch (e) { go(); }
+  })();
+</script>
+</head>
+<body>
+  <div>
+    <div style="font-size:64px">👶</div>
+    <h1>Sanna Babys se mudó</h1>
+    <p>Te llevamos a la nueva dirección con tu progreso…</p>
+    <p><a href="https://sanna-babys.vercel.app">sanna-babys.vercel.app</a></p>
+  </div>
+</body>
+</html>

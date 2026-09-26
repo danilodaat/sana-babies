@@ -33,7 +33,9 @@ export function useNpc(id: string, position: [number, number, number]) {
   useFrame(() => {
     const dx = player.position.x - position[0];
     const dz = player.position.z - position[2];
-    const near = dx * dx + dz * dz < INTERACTION_DISTANCE * INTERACTION_DISTANCE;
+    // Mismo piso: con el hospital de 3 pisos hay NPCs uno encima del otro
+    const sameFloor = Math.abs(player.position.y - position[1]) < 2;
+    const near = sameFloor && dx * dx + dz * dz < INTERACTION_DISTANCE * INTERACTION_DISTANCE;
     if (near !== nearRef.current) {
       nearRef.current = near;
       setIsNear(near);

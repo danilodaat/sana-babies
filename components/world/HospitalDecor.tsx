@@ -33,7 +33,7 @@ function Plant({ position, color = '#66bb6a', pot = '#ff8a65' }: { position: [nu
 }
 
 /** Mural: emoji dibujado en un canvas, como textura */
-function Poster({ emoji, bg, position }: { emoji: string; bg: string; position: [number, number, number] }) {
+function Poster({ emoji, bg, position, rotation = 0 }: { emoji: string; bg: string; position: [number, number, number]; rotation?: number }) {
   const texture = useMemo(() => {
     const c = document.createElement('canvas');
     c.width = c.height = 256;
@@ -51,7 +51,7 @@ function Poster({ emoji, bg, position }: { emoji: string; bg: string; position: 
     return t;
   }, [emoji, bg]);
   return (
-    <mesh position={position} userData={{ noToon: true }}>
+    <mesh position={position} rotation={[0, rotation, 0]} userData={{ noToon: true }}>
       <planeGeometry args={[2, 2]} />
       <meshBasicMaterial map={texture} transparent />
     </mesh>
@@ -136,25 +136,26 @@ function Aquarium({ position }: { position: [number, number, number] }) {
 export default function HospitalDecor() {
   const owned = useGameStore((s) => s.owned);
   const has = (id: string) => owned.includes(id);
+  // Todo esto vive en Pediatría (piso 2, y = 4.5)
   return (
-    <group>
+    <group position={[0, 4.5, 0]}>
       {has('decor-plants') && (
         <>
-          <Plant position={[-10.8, 0, -7.8]} />
-          <Plant position={[10.8, 0, -7.8]} color="#81c784" pot="#4fc3f7" />
-          <Plant position={[-3.2, 0, 7.8]} color="#aed581" pot="#ba68c8" />
-          <Plant position={[3.2, 0, 7.8]} pot="#ffd54f" />
+          <Plant position={[-10.8, 0, 7.8]} />
+          <Plant position={[10.8, 0, 7.8]} color="#81c784" pot="#4fc3f7" />
+          <Plant position={[-10.8, 0, -3]} color="#aed581" pot="#ba68c8" />
+          <Plant position={[10.8, 0, -3.6]} pot="#ffd54f" />
         </>
       )}
       {has('decor-posters') && (
         <>
-          <Poster emoji="🦒" bg="#fff59d" position={[-6, 3.6, -8.85]} />
-          <Poster emoji="🐘" bg="#b3e5fc" position={[-2.6, 3.8, -8.85]} />
-          <Poster emoji="🦁" bg="#ffccbc" position={[6, 3.6, -8.85]} />
+          <Poster emoji="🦒" bg="#fff59d" position={[-6, 2.6, -8.75]} />
+          <Poster emoji="🐘" bg="#b3e5fc" position={[-2.6, 2.8, -8.75]} />
+          <Poster emoji="🦁" bg="#ffccbc" position={[-11.75, 2.6, 4]} rotation={Math.PI / 2} />
         </>
       )}
-      {has('decor-toys') && <Toys position={[-7.5, 0, 5.5]} />}
-      {has('decor-aquarium') && <Aquarium position={[7.6, 0, 6.8]} />}
+      {has('decor-toys') && <Toys position={[-6.5, 0, 4.2]} />}
+      {has('decor-aquarium') && <Aquarium position={[8.6, 0, 7.6]} />}
     </group>
   );
 }

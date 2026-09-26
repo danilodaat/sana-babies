@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
 import { CASE_BY_ID, availableStoryCases, emergencyPool, isEmergency, scoreCase, zoneIn, zoneTo, type Case, type TreatmentOption } from '@/lib/cases';
 import { NPC_BY_ID, npcName } from '@/lib/npcs';
-import { getObjective, nearestNpc } from '@/lib/objective';
+import { getObjective, nearestNpc, waypointFor } from '@/lib/objective';
 import { sfx, duckMusic } from '@/lib/audio';
 import { emit } from '@/lib/fx';
 import { toast } from '@/lib/toast';
@@ -359,6 +359,11 @@ function ObjectiveBanner() {
           ? `${clock} · ¡Corre con ${name} ${zoneTo(c.zone)}!`
           : `¡${name} todavía te necesita ${zoneIn(c.zone)}!`;
   }
+
+  // Si el paciente está en otro piso, el banner dice cómo llegar
+  const npcPos = target ? npcPositions.get(target.id) : null;
+  const way = npcPos ? waypointFor(npcPos) : null;
+  if (way?.hint && near !== target?.id) text = `${text} · ${way.hint}`;
 
   return (
     <div style={{ position: 'absolute', top: 'calc(max(env(safe-area-inset-top), 10px) + 48px)', left: 12, right: 136 }}>

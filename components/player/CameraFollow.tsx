@@ -6,6 +6,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { useGameStore } from '@/store/gameStore';
 import { player, input } from '@/lib/runtime';
+import { insideHospital } from '@/lib/hospital';
 
 const CAMERA_OFFSET = new THREE.Vector3(0, 5.2, 7.5);
 // Dentro del hospital (techo a 7 m): cámara más alta y cercana, casi cenital
@@ -63,8 +64,7 @@ export default function CameraFollow() {
       const pitch = THREE.MathUtils.lerp(0.4, 1.6, input.cameraPitch);
       offset.current.y *= pitch;
       offset.current.z /= Math.sqrt(pitch);
-      // Dentro del hospital la cámara nunca sube por encima del techo (7 m)
-      if (indoor.current > 0.5) offset.current.y = Math.min(offset.current.y, 6.3 - player.position.y);
+
       offset.current.applyAxisAngle(UP, input.cameraAngle);
       desired.current.copy(player.position).add(offset.current);
       desiredLook.current
@@ -91,7 +91,7 @@ export default function CameraFollow() {
 
     // Colisión de cámara: si una pared tapa al doctor, la cámara se acerca
     let finalPos = pos.current;
-    if (started) {
+    if (started && !insideHospital(player.position.x, player.position.z)) {
       toCam.copy(pos.current).sub(look.current);
       const full = toCam.length();
       toCam.divideScalar(full);
