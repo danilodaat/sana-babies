@@ -6,7 +6,7 @@
  *  - /_next/static: caché primero (los nombres llevan hash, nunca cambian)
  *  - Resto del mismo origen: devuelve lo guardado y actualiza en segundo plano
  */
-const VERSION = 'sb-v6';
+const VERSION = 'sb-v7';
 const SHELL = ['/', '/manifest.webmanifest', '/icons/icon-192.png', '/icons/icon-512.png'];
 
 self.addEventListener('install', (event) => {
@@ -27,6 +27,8 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET') return;
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
+  // Cuenta y partida en la nube: siempre a la red, nunca desde caché
+  if (url.pathname.startsWith('/api/')) return;
 
   if (req.mode === 'navigate') {
     event.respondWith(

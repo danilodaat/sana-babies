@@ -5,6 +5,8 @@ import dynamic from 'next/dynamic';
 import { useGameStore, hasSavedProgress, importSaveFromLink } from '@/store/gameStore';
 import { unlock, startMusic, setMuted, sfx } from '@/lib/audio';
 import { resetRuntime } from '@/lib/runtime';
+import Account from '@/components/ui/Account';
+import { useCloud } from '@/lib/cloud';
 
 const Game = dynamic(() => import('@/components/Game'), { ssr: false });
 
@@ -37,6 +39,13 @@ export default function Home() {
   const [installEvt, setInstallEvt] = useState<InstallPrompt | null>(null);
   const [showIosHint, setShowIosHint] = useState(false);
   const [installed, setInstalled] = useState(false);
+  const cloudUser = useCloud((s) => s.username);
+  const cloudStatus = useCloud((s) => s.status);
+  const setCloudOpen = useCloud((s) => s.setOpen);
+  // Al entrar a la cuenta puede llegar una partida de la nube: actualizar "Continuar"
+  useEffect(() => {
+    setHasSave(hasSavedProgress());
+  }, [cloudUser, cloudStatus, level]);
 
   useEffect(() => {
     setMounted(true);
@@ -96,6 +105,7 @@ export default function Home() {
   return (
     <div style={{ width: '100vw', height: '100dvh', position: 'relative', overflow: 'hidden' }}>
       <Game />
+      <Account />
 
       {!started && (
         <div
@@ -157,6 +167,11 @@ export default function Home() {
             </>
           )}
 
+          {mounted && (
+            <button className="sb-btn sb-btn-ghost" style={{ marginTop: 6 }} onClick={() => { sfx.click(); setCloudOpen(true); }}>
+              {cloudUser ? `☁️ ${cloudUser}` : '👤 Entrar o crear cuenta'}
+            </button>
+          )}
           {canInstall && (
             <button className="sb-btn sb-btn-ghost" style={{ marginTop: 6 }} onClick={install}>
               📲 Instalar como app

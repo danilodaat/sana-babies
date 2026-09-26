@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // La raíz es esta carpeta (hay otros package-lock.json más arriba en el disco)
+  outputFileTracingRoot: __dirname,
+  turbopack: { root: __dirname },
   // El service worker nunca se cachea: así los jugadores reciben siempre la última versión
   async headers() {
     return [

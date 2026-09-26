@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useGameStore, ALBUM_PATIENTS } from '@/store/gameStore';
 import { subscribeToasts, type Toast } from '@/lib/toast';
 import { sfx } from '@/lib/audio';
+import { useCloud } from '@/lib/cloud';
 
 /** Botones de tienda y álbum (debajo del minimapa) */
 export function HudButtons() {
@@ -11,6 +12,9 @@ export function HudButtons() {
   const modal = useGameStore((s) => s.modal);
   const npcHealed = useGameStore((s) => s.npcHealed);
   const got = ALBUM_PATIENTS.filter((id) => (npcHealed[id] ?? 0) > 0).length;
+  const cloudUser = useCloud((s) => s.username);
+  const cloudStatus = useCloud((s) => s.status);
+  const setCloudOpen = useCloud((s) => s.setOpen);
   const open = (p: 'shop' | 'album') => {
     if (useGameStore.getState().modal) return;
     sfx.click();
@@ -49,6 +53,30 @@ export function HudButtons() {
         >
           {got}/{ALBUM_PATIENTS.length}
         </span>
+      </button>
+      <button
+        className="sb-icon-btn"
+        style={style}
+        onClick={() => {
+          if (useGameStore.getState().modal) return;
+          sfx.click();
+          setCloudOpen(true);
+        }}
+        aria-label="Cuenta"
+      >
+        {cloudUser ? '☁️' : '👤'}
+        <span
+          style={{
+            position: 'absolute',
+            bottom: 1,
+            right: 1,
+            width: 11,
+            height: 11,
+            borderRadius: '50%',
+            border: '2px solid #fff',
+            background: !cloudUser ? '#9ca3af' : cloudStatus === 'saved' ? '#22c55e' : cloudStatus === 'syncing' ? '#facc15' : '#f97316',
+          }}
+        />
       </button>
     </div>
   );
